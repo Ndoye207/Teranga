@@ -1,0 +1,262 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity,
+  FlatList, StyleSheet, ActivityIndicator,
+  SafeAreaView, StatusBar,
+} from 'react-native';
+import Icon from '../../components/Icon';
+import { Card } from '../../components/Card';
+import { COLORS } from '../../constants/colors';
+import { Vendor } from '../../types';
+
+import { api } from '../../services/api';
+
+const CATEGORIES = [
+  { id: 'all',      label: 'Tous',     icon: 'grid',              family: 'ion' },
+  { id: 'legumes',  label: 'Légumes',  icon: 'leaf',              family: 'ion' },
+  { id: 'plats',    label: 'Plats',    icon: 'restaurant',        family: 'ion' },
+  { id: 'traiteur', label: 'Traiteur', icon: 'people',            family: 'ion' },
+];
+
+const CAT_COLORS: Record<string, string> = {
+  all: '#E8F0FB', legumes: '#EDFBF3', plats: '#FEF0E8', traiteur: '#F3EEFB',
+};
+const CAT_ICON_COLORS: Record<string, string> = {
+  all: '#1B3A6B', legumes: '#22C55E', plats: '#E8834A', traiteur: '#8B5CF6',
+};
+
+export default function HomeScreen({ navigation }: any) {
+  const [search, setSearch]     = useState('');
+  const [category, setCategory] = useState('all');
+  const [vendors, setVendors]   = useState<Vendor[]>([]);
+  const [loading, setLoading]   = useState(true);
+
+  useEffect(() => { loadVendors(); }, []);
+
+  const loadVendors = async () => {
+    setLoading(true);
+    try {
+      const data = await api.getVendors();
+      // Map DB data to App Vendor interface
+      const mappedVendors: Vendor[] = data.map(v => ({
+        id: v.id,
+        name: v.store_name,
+        address: v.address || '',
+        city: '', 
+        latitude: 0, 
+        longitude: 0, 
+        rating: v.rating || 0,
+        totalOrders: 0, 
+        isOpen: v.is_open ?? true,
+        categories: [], 
+      }));
+      setVendors(mappedVendors);
+    } catch (err) {
+      console.error("Erreur chargement vendeurs:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filtered = vendors.filter(v => {
+    const matchSearch = v.name.toLowerCase().includes(search.toLowerCase());
+    const matchCat    = category === 'all' || v.categories.includes(category as any);
+    return matchSearch && matchCat;
+  });
+
+  const renderCategory = ({ item }: any) => {
+    const isActive = category === item.id;
+    return (
+      <TouchableOpacity
+        style={[styles.catBtn, isActive && styles.catBtnActive]}
+        onPress={() => setCategory(item.id)}
+      >
+        <View style={[
+          styles.catIconBox,
+          isActive ? styles.catIconBoxActive : { backgroundColor: CAT_COLORS[item.id] }
+        ]}>
+          <Icon
+            name={item.icon}
+            family={item.family}
+            size={16}
+            color={isActive ? '#fff' : CAT_ICON_COLORS[item.id]}
+          />
+        </View>
+        <Text style={[styles.catLabel, isActive && styles.catLabelActive]}>
+          {item.label}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderVendor = ({ item }: { item: Vendor }) => (
+    <Card style={styles.vendorCard}>
+      <TouchableOpacity
+        onPress={() => navigation.navigate('Vendor', { vendor: item })}
+        activeOpacity={0.85}
+      >
+        {/* Image placeholder avec icône */}
+        <View style={styles.vendorImgBox}>
+          <View style={styles.vendorImgIcon}>
+            <Icon
+              name={
+                item.categories.includes('traiteur') ? 'people' :
+                item.categories.includes('plats')    ? 'restaurant' : 'leaf'
+              }
+              size={36}
+              color={COLORS.primary}
+            />
+          </View>
+          {!item.isOpen && (
+            <View style={styles.closedOverlay}>
+              <Text style={styles.closedText}>Fermé</Text>
+            </View>
+          )}
+          {item.badge === 'top' && (
+            <View style={styles.topBadge}>
+              <Icon name="star" size={10} color="#92400E" />
+              <Text style={styles.topBadgeText}>Top</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.vendorInfo}>
+          <View style={styles.vendorTopRow}>
+            <Text style={styles.vendorName} numberOfLines={1}>{item.name}</Text>
+            <View style={styles.ratingPill}>
+              <Icon name="star" size={11} color="#F59E0B" />
+              <Text style={styles.ratingText}>{item.rating}</Text>
+            </View>
+          </View>
+          {/* ... reste de la logique info ... */}
+        </View>
+      </TouchableOpacity>
+    </Card>
+  );
+
+  return (
+    <View style={styles.container}>
+    <StatusBar backgroundColor="#1B3A6B" barStyle="light-content" translucent={false} />
+    <SafeAreaView style={styles.flex1}>
+
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.greeting}>Bonjour 👋</Text>
+            <View style={styles.locationRow}>
+              <Icon name="location" size={13} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.location}>Dakar, Sénégal</Text>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.notifBtn}>
+            <Icon name="notifications-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Search */}
+        <View style={styles.searchBox}>
+          <Icon name="search" size={18} color="rgba(255,255,255,0.7)" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Chercher un vendeur ou un plat..."
+            placeholderTextColor="rgba(255,255,255,0.6)"
+            value={search}
+            onChangeText={setSearch}
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <Icon name="close-circle" size={18} color="rgba(255,255,255,0.7)" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Categories */}
+      <FlatList
+        data={CATEGORIES}
+        keyExtractor={i => i.id}
+        renderItem={renderCategory}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.catList}
+        contentContainerStyle={styles.catListContent}
+      />
+
+      {/* Vendors */}
+      {loading ? (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color="#1B3A6B" />
+          <Text style={styles.loadingText}>Chargement des vendeurs...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={i => i.id}
+          renderItem={renderVendor}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.vendorListContent}
+          ListHeaderComponent={
+            <Text style={styles.sectionTitle}>
+              {filtered.length} vendeur{filtered.length > 1 ? 's' : ''} près de vous
+            </Text>
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyBox}>
+              <Icon name="search" size={40} color={COLORS.border} />
+              <Text style={styles.emptyText}>Aucun vendeur trouvé</Text>
+            </View>
+          }
+        />
+      )}
+    </SafeAreaView></View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container:       { flex: 1, backgroundColor: COLORS.bg },
+  flex1:           { flex: 1 },
+  catBtnActive:    { backgroundColor: '#1B3A6B', borderColor: '#1B3A6B' },
+  catLabelActive:  { color: '#fff' },
+  catListContent:  { paddingHorizontal: 16, gap: 8 },
+  vendorListContent: { padding: 16, gap: 12 },
+  header:          { backgroundColor: '#1B3A6B', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20 },
+  headerTop:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  greeting:        { fontSize: 18, fontWeight: '700', color: '#fff' },
+  locationRow:     { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  location:        { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
+  notifBtn:        { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  searchBox:       { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  searchInput:     { flex: 1, fontSize: 14, color: '#fff', padding: 0 },
+  catList:         { backgroundColor: '#fff', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexGrow: 0 },
+  catBtn:          { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 24, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bg },
+  catIconBox:      { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  catIconBoxActive: { backgroundColor: 'rgba(255,255,255,0.2)' },
+  catLabel:        { fontSize: 13, fontWeight: '500', color: COLORS.textSecondary },
+  sectionTitle:    { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 4 },
+  vendorCard:      { backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
+  vendorImgBox:    { height: 110, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
+  vendorImgIcon:   { width: 64, height: 64, borderRadius: 32, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border },
+  closedOverlay:   { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
+  closedText:      { color: '#fff', fontWeight: '700', fontSize: 16 },
+  topBadge:        { position: 'absolute', top: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FEF3C7', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  topBadgeText:    { fontSize: 11, fontWeight: '700', color: '#92400E' },
+  vendorInfo:      { padding: 12, gap: 6 },
+  vendorTopRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  vendorName:      { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, flex: 1 },
+  ratingPill:      { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FEF3C7', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  ratingText:      { fontSize: 12, fontWeight: '700', color: '#92400E' },
+  vendorMetaRow:   { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  vendorAddress:   { fontSize: 12, color: COLORS.textSecondary, flex: 1 },
+  vendorBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
+  catTagsRow:      { flexDirection: 'row', gap: 6 },
+  catTag:          { backgroundColor: COLORS.bg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: COLORS.border },
+  catTagText:      { fontSize: 10, color: COLORS.textSecondary, textTransform: 'capitalize' },
+  statusDot:       { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  statusDotInner:  { width: 6, height: 6, borderRadius: 3 },
+  statusText:      { fontSize: 11, fontWeight: '600' },
+  loadingBox:      { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingText:     { fontSize: 13, color: COLORS.textSecondary },
+  emptyBox:        { padding: 40, alignItems: 'center', gap: 10 },
+  emptyText:       { fontSize: 14, color: COLORS.textSecondary },
+});
