@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, SafeAreaView, Image, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image, ScrollView } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useAuthStore } from '../../store/useAuthStore';
 import { api } from '../../services/api';
@@ -35,7 +36,7 @@ export default function CreateShopScreen({ navigation }: any) {
     try {
       let logoUrl = null;
       if (logo) {
-        logoUrl = await api.uploadImage('shop-logos', logo);
+        logoUrl = await api.uploadImage('shop-logos', logo, user.id);
       }
 
       await api.createShop({
@@ -61,7 +62,7 @@ export default function CreateShopScreen({ navigation }: any) {
         
         <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
           {logo ? (
-            <Image source={{ uri: logo }} style={styles.image} />
+            <Image source={{ uri: logo }} style={styles.image} resizeMode="cover" />
           ) : (
             <Text style={styles.imagePlaceholder}>Choisir un logo</Text>
           )}
@@ -105,7 +106,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   scrollContent: { padding: 20 },
   title: { fontSize: 24, fontWeight: 'bold', color: COLORS.primary, marginBottom: 20, textAlign: 'center' },
-  imagePicker: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#EEE', justifyContent: 'center', alignItems: 'center', marginBottom: 20, alignSelf: 'center' },
+  imagePicker: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#EEE', overflow: 'hidden', justifyContent: 'center', alignItems: 'center', marginBottom: 20, alignSelf: 'center' },
   image: { width: '100%', height: '100%', borderRadius: 60 },
   imagePlaceholder: { color: COLORS.textSecondary, textAlign: 'center' },
   input: { backgroundColor: '#FFF', padding: 15, borderRadius: 8, marginBottom: 15, borderWidth: 1, borderColor: COLORS.border },

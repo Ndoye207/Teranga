@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity,
-  FlatList, StyleSheet, ActivityIndicator,
-  SafeAreaView, StatusBar,
-} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator, StatusBar } from 'react-native';
 import Icon from '../../components/Icon';
 import { Card } from '../../components/Card';
 import { COLORS } from '../../constants/colors';
@@ -26,6 +23,7 @@ const CAT_ICON_COLORS: Record<string, string> = {
 };
 
 export default function HomeScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const [search, setSearch]     = useState('');
   const [category, setCategory] = useState('all');
   const [vendors, setVendors]   = useState<Vendor[]>([]);
@@ -37,7 +35,6 @@ export default function HomeScreen({ navigation }: any) {
     setLoading(true);
     try {
       const data = await api.getVendors();
-      // Map DB data to App Vendor interface
       const mappedVendors: Vendor[] = data.map(v => ({
         id: v.id,
         name: v.store_name,
@@ -95,7 +92,6 @@ export default function HomeScreen({ navigation }: any) {
         onPress={() => navigation.navigate('Vendor', { vendor: item })}
         activeOpacity={0.85}
       >
-        {/* Image placeholder avec icône */}
         <View style={styles.vendorImgBox}>
           <View style={styles.vendorImgIcon}>
             <Icon
@@ -128,16 +124,14 @@ export default function HomeScreen({ navigation }: any) {
               <Text style={styles.ratingText}>{item.rating}</Text>
             </View>
           </View>
-          {/* ... reste de la logique info ... */}
         </View>
       </TouchableOpacity>
     </Card>
   );
 
   return (
-    <View style={styles.container}>
-    <StatusBar backgroundColor="#1B3A6B" barStyle="light-content" translucent={false} />
-    <SafeAreaView style={styles.flex1}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#1B3A6B' }]} edges={['top']}>
+      <StatusBar backgroundColor="#1B3A6B" barStyle="light-content" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -172,44 +166,46 @@ export default function HomeScreen({ navigation }: any) {
         </View>
       </View>
 
-      {/* Categories */}
-      <FlatList
-        data={CATEGORIES}
-        keyExtractor={i => i.id}
-        renderItem={renderCategory}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.catList}
-        contentContainerStyle={styles.catListContent}
-      />
-
-      {/* Vendors */}
-      {loading ? (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color="#1B3A6B" />
-          <Text style={styles.loadingText}>Chargement des vendeurs...</Text>
-        </View>
-      ) : (
+      <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
+        {/* Categories */}
         <FlatList
-          data={filtered}
+          data={CATEGORIES}
           keyExtractor={i => i.id}
-          renderItem={renderVendor}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.vendorListContent}
-          ListHeaderComponent={
-            <Text style={styles.sectionTitle}>
-              {filtered.length} vendeur{filtered.length > 1 ? 's' : ''} près de vous
-            </Text>
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyBox}>
-              <Icon name="search" size={40} color={COLORS.border} />
-              <Text style={styles.emptyText}>Aucun vendeur trouvé</Text>
-            </View>
-          }
+          renderItem={renderCategory}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.catList}
+          contentContainerStyle={styles.catListContent}
         />
-      )}
-    </SafeAreaView></View>
+
+        {/* Vendors */}
+        {loading ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color="#1B3A6B" />
+            <Text style={styles.loadingText}>Chargement des vendeurs...</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filtered}
+            keyExtractor={i => i.id}
+            renderItem={renderVendor}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.vendorListContent}
+            ListHeaderComponent={
+              <Text style={styles.sectionTitle}>
+                {filtered.length} vendeur{filtered.length > 1 ? 's' : ''} près de vous
+              </Text>
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyBox}>
+                <Icon name="search" size={40} color={COLORS.border} />
+                <Text style={styles.emptyText}>Aucun vendeur trouvé</Text>
+              </View>
+            }
+          />
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -220,7 +216,7 @@ const styles = StyleSheet.create({
   catLabelActive:  { color: '#fff' },
   catListContent:  { paddingHorizontal: 16, gap: 8 },
   vendorListContent: { padding: 16, gap: 12 },
-  header:          { backgroundColor: '#1B3A6B', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20 },
+  header:          { backgroundColor: '#1B3A6B', paddingHorizontal: 16, paddingBottom: 20, paddingTop: 6 },
   headerTop:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   greeting:        { fontSize: 18, fontWeight: '700', color: '#fff' },
   locationRow:     { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
@@ -246,15 +242,6 @@ const styles = StyleSheet.create({
   vendorName:      { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, flex: 1 },
   ratingPill:      { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FEF3C7', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   ratingText:      { fontSize: 12, fontWeight: '700', color: '#92400E' },
-  vendorMetaRow:   { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  vendorAddress:   { fontSize: 12, color: COLORS.textSecondary, flex: 1 },
-  vendorBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
-  catTagsRow:      { flexDirection: 'row', gap: 6 },
-  catTag:          { backgroundColor: COLORS.bg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: COLORS.border },
-  catTagText:      { fontSize: 10, color: COLORS.textSecondary, textTransform: 'capitalize' },
-  statusDot:       { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  statusDotInner:  { width: 6, height: 6, borderRadius: 3 },
-  statusText:      { fontSize: 11, fontWeight: '600' },
   loadingBox:      { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText:     { fontSize: 13, color: COLORS.textSecondary },
   emptyBox:        { padding: 40, alignItems: 'center', gap: 10 },

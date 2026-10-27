@@ -1,3 +1,4 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { authService } from '../../services/authService';
@@ -13,7 +14,7 @@ export const RegisterScreen = ({ navigation }: any) => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'buyer' | 'vendor'>('buyer');
+  const [role, setRole] = useState<'buyer' | 'vendor' | 'livreur'>('buyer');
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
@@ -39,7 +40,7 @@ export const RegisterScreen = ({ navigation }: any) => {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Créer un compte</Text>
       <Text style={styles.subtitle}>Rejoignez Teranga Market</Text>
 
@@ -83,6 +84,13 @@ export const RegisterScreen = ({ navigation }: any) => {
         >
           <Text style={[styles.roleText, role === 'vendor' && styles.roleTextActive]}>Vendeur</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.roleButton, role === 'livreur' && styles.roleActive]}
+          onPress={() => setRole('livreur')}
+        >
+          <Text style={[styles.roleText, role === 'livreur' && styles.roleTextActive]}>Livreur</Text>
+        </TouchableOpacity>
       </View>
 
       <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
@@ -96,7 +104,7 @@ export const RegisterScreen = ({ navigation }: any) => {
       <TouchableOpacity onPress={() => navigation?.goBack()}>
         <Text style={styles.linkText}>Déjà un compte ? Se connecter</Text>
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 };
 

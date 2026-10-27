@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput,
-  StyleSheet, SafeAreaView, StatusBar, ScrollView,
+  StyleSheet, StatusBar, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../../components/Icon';
 import { COLORS } from '../../constants/colors';
 
@@ -37,22 +38,25 @@ export default function RatingScreen({ route, navigation }: any) {
 
   if (submitted) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.successBox}>
-          <View style={styles.successIconBox}>
-            <Icon name="checkmark-circle" size={64} color="#22C55E" />
+      <SafeAreaView style={[styles.container, { backgroundColor: '#1B3A6B' }]} edges={['top']}>
+        <StatusBar backgroundColor="#1B3A6B" barStyle="light-content" />
+        <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
+          <View style={styles.successBox}>
+            <View style={styles.successIconBox}>
+              <Icon name="checkmark-circle" size={64} color="#22C55E" />
+            </View>
+            <Text style={styles.successTitle}>Merci pour votre avis !</Text>
+            <Text style={styles.successText}>
+              Votre note aide la communauté Teranga Market
+            </Text>
           </View>
-          <Text style={styles.successTitle}>Merci pour votre avis !</Text>
-          <Text style={styles.successText}>
-            Votre note aide la communauté Teranga Market
-          </Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#1B3A6B' }]} edges={['top']}>
       <StatusBar backgroundColor="#1B3A6B" barStyle="light-content" />
 
       <View style={styles.header}>
@@ -65,110 +69,93 @@ export default function RatingScreen({ route, navigation }: any) {
         </View>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-
-        {/* Vendeur */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={[styles.avatar, styles.avatarVendeur]}>
-              <Icon name="storefront" family="material" size={24} color="#1B3A6B" />
-            </View>
-            <View style={styles.cardHeaderInfo}>
-              <Text style={styles.cardTitle}>Vendeur</Text>
-              <Text style={styles.cardSub}>{order?.vendorName ?? 'Épicerie Ndeye Fatou'}</Text>
-            </View>
-          </View>
-          <Text style={styles.rateQuestion}>Qualité des produits et service</Text>
-          <StarPicker value={vendorRating} onChange={setVendorRating} />
-          <View style={styles.ratingLabel}>
-            <Text style={styles.ratingLabelText}>
-              {vendorRating === 5 ? 'Excellent !' :
-               vendorRating === 4 ? 'Très bien'  :
-               vendorRating === 3 ? 'Bien'        :
-               vendorRating === 2 ? 'Passable'    : 'Décevant'}
-            </Text>
-          </View>
-          <TextInput
-            style={styles.commentInput}
-            placeholder="Laisser un commentaire (optionnel)"
-            placeholderTextColor={COLORS.textSecondary}
-            value={vendorComment}
-            onChangeText={setVendorComment}
-            multiline
-            numberOfLines={2}
-          />
-        </View>
-
-        {/* Livreur */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={[styles.avatar, styles.avatarLivreur]}>
-              <Icon name="bicycle" size={24} color="#22C55E" />
-            </View>
-            <View style={styles.cardHeaderInfo}>
-              <Text style={styles.cardTitle}>Livreur</Text>
-              <Text style={styles.cardSub}>Moussa D.</Text>
-            </View>
-          </View>
-          <Text style={styles.rateQuestion}>Ponctualité et politesse</Text>
-          <StarPicker value={livreurRating} onChange={setLivreurRating} />
-          <View style={styles.ratingLabel}>
-            <Text style={styles.ratingLabelText}>
-              {livreurRating === 5 ? 'Excellent !' :
-               livreurRating === 4 ? 'Très bien'  :
-               livreurRating === 3 ? 'Bien'        :
-               livreurRating === 2 ? 'Passable'    : 'Décevant'}
-            </Text>
-          </View>
-          <TextInput
-            style={styles.commentInput}
-            placeholder="Laisser un commentaire (optionnel)"
-            placeholderTextColor={COLORS.textSecondary}
-            value={livreurComment}
-            onChangeText={setLivreurComment}
-            multiline
-            numberOfLines={2}
-          />
-        </View>
-
-        {/* Résumé */}
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryVal}>{vendorRating}/5</Text>
-            <Icon name="star" size={14} color="#F59E0B" />
-            <Text style={styles.summarySub}>Vendeur</Text>
-          </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryVal}>{livreurRating}/5</Text>
-            <Icon name="star" size={14} color="#F59E0B" />
-            <Text style={styles.summarySub}>Livreur</Text>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={styles.submitBtn}
-          onPress={handleSubmit}
-          activeOpacity={0.9}
+      <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
         >
-          <Icon name="send" size={18} color="#fff" />
-          <Text style={styles.submitBtnText}>Envoyer mes notes</Text>
-        </TouchableOpacity>
 
-      </ScrollView>
+          {/* Vendeur */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.avatar, styles.avatarVendeur]}>
+                <Icon name="storefront" family="material" size={24} color="#1B3A6B" />
+              </View>
+              <View style={styles.cardHeaderInfo}>
+                <Text style={styles.cardTitle}>Vendeur</Text>
+                <Text style={styles.cardSub}>{order?.vendorName ?? 'Épicerie Ndeye Fatou'}</Text>
+              </View>
+            </View>
+            <Text style={styles.rateQuestion}>Qualité des produits et service</Text>
+            <StarPicker value={vendorRating} onChange={setVendorRating} />
+            <View style={styles.ratingLabel}>
+              <Text style={styles.ratingLabelText}>
+                {vendorRating === 5 ? 'Excellent !' :
+                 vendorRating === 4 ? 'Très bien'  :
+                 vendorRating === 3 ? 'Bien'        :
+                 vendorRating === 2 ? 'Passable'    : 'Décevant'}
+              </Text>
+            </View>
+            <TextInput
+              style={styles.commentInput}
+              placeholder="Laisser un commentaire (optionnel)"
+              placeholderTextColor={COLORS.textSecondary}
+              value={vendorComment}
+              onChangeText={setVendorComment}
+              multiline
+            />
+          </View>
+
+          {/* Livreur */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.avatar, styles.avatarLivreur]}>
+                <Icon name="bicycle" size={24} color="#22C55E" />
+              </View>
+              <View style={styles.cardHeaderInfo}>
+                <Text style={styles.cardTitle}>Livreur</Text>
+                <Text style={styles.cardSub}>Service de livraison</Text>
+              </View>
+            </View>
+            <Text style={styles.rateQuestion}>Rapidité et courtoisie</Text>
+            <StarPicker value={livreurRating} onChange={setLivreurRating} />
+            <View style={styles.ratingLabel}>
+              <Text style={styles.ratingLabelText}>
+                {livreurRating === 5 ? 'Excellent !' :
+                 livreurRating === 4 ? 'Très bien'  :
+                 livreurRating === 3 ? 'Bien'        :
+                 livreurRating === 2 ? 'Passable'    : 'Décevant'}
+              </Text>
+            </View>
+            <TextInput
+              style={styles.commentInput}
+              placeholder="Laisser un commentaire (optionnel)"
+              placeholderTextColor={COLORS.textSecondary}
+              value={livreurComment}
+              onChangeText={setLivreurComment}
+              multiline
+            />
+          </View>
+
+          {/* Bouton Soumettre */}
+          <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
+            <Icon name="checkmark" size={18} color="#fff" />
+            <Text style={styles.submitBtnText}>Envoyer mon avis</Text>
+          </TouchableOpacity>
+
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container:       { flex: 1, backgroundColor: COLORS.bg },
+  flex1:           { flex: 1 },
   scrollContent:   { padding: 16, gap: 14 },
   avatarVendeur:   { backgroundColor: '#EEF2FF' },
   avatarLivreur:   { backgroundColor: '#EDFBF3' },
-  header:          { backgroundColor: '#1B3A6B', padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  header:          { backgroundColor: '#1B3A6B', paddingTop: 6, paddingBottom: 16, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   backBtn:         { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   headerTitle:     { fontSize: 18, fontWeight: '700', color: '#fff' },
   headerSub:       { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 2 },

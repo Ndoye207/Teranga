@@ -17,17 +17,21 @@ export type ClientStackParamList = {
 };
 
 export type VendorStackParamList = {
+  Main: undefined;
   Products: undefined;
   Orders: undefined;
   CreateShop: undefined;
-  AddProduct: { vendorId: string };
+  AddProduct: { vendorId?: string; product?: any };
   AccountSettings: undefined;
   ShopSettings: undefined;
 };
 
 export type LivreurStackParamList = {
+  MainTabs: undefined;
   Courses: undefined;
   CourseDetail: { courseId: string };
+  CreateCourier: undefined;
+  CourierSettings: undefined;
 };
 
 export type LivreurTabParamList = {

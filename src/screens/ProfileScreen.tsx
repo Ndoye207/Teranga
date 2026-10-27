@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Alert } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { useAuthStore } from '../store/useAuthStore';
 import Icon from '../components/Icon';
@@ -70,6 +71,7 @@ export default function ProfileScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
+  flex1: { flex: 1 },
   container: { flex: 1 },
   headerBar: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 20, paddingTop: 10 },
   scrollContent: { padding: 20 },

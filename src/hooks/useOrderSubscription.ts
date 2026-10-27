@@ -1,15 +1,25 @@
 import { useEffect } from 'react';
 import { supabase } from '../services/supabase';
 
-export const useOrderSubscription = (onUpdate: (payload: any) => void) => {
+export const useOrderSubscription = (
+  onInsert?: (payload: any) => void,
+  onUpdate?: (payload: any) => void
+) => {
   useEffect(() => {
     const channel = supabase
-      .channel('public:orders')
+      .channel('public:orders-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders' },
+        (payload) => {
+          if (onInsert) onInsert(payload.new);
+        }
+      )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'orders' },
         (payload) => {
-          onUpdate(payload.new);
+          if (onUpdate) onUpdate(payload.new);
         }
       )
       .subscribe();
@@ -17,5 +27,5 @@ export const useOrderSubscription = (onUpdate: (payload: any) => void) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [onUpdate]);
+  }, [onInsert, onUpdate]);
 };

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList,
-  StyleSheet, SafeAreaView, StatusBar, Alert,
+  StyleSheet, StatusBar, Alert,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/colors';
 import { Product } from '../../types';
 import { vendorService } from '../../services/vendorService';
@@ -131,7 +132,7 @@ export default function ProductsScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: COLORS.primary }]} edges={['top']}>
       <StatusBar backgroundColor={COLORS.primary} barStyle="light-content" />
 
       <View style={styles.header}>
@@ -139,67 +140,70 @@ export default function ProductsScreen() {
         <Text style={styles.headerSub}>{products.length} produits au total</Text>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        {TABS.map(tab => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab && styles.tabActive]}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-              {tab}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
+        {/* Tabs */}
+        <View style={styles.tabs}>
+          {TABS.map(tab => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tab, activeTab === tab && styles.tabActive]}
+              onPress={() => setActiveTab(tab)}
+            >
+              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-      <FlatList
-        data={filtered}
-        keyExtractor={i => i.id}
-        renderItem={renderProduct}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>Aucun produit dans cette catégorie</Text>
-          </View>
-        }
-        ListFooterComponent={
-          <TouchableOpacity 
-            style={styles.addBtn} 
-            onPress={async () => {
-              if (products.length > 0) {
-                navigation.navigate('AddProduct', { vendorId: products[0].vendor_id });
-              } else {
-                // Fetch vendor ID if list is empty
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user) {
-                  const { data: vendorData } = await supabase
-                    .from('vendors')
-                    .select('id')
-                    .eq('profile_id', user.id)
-                    .single();
-                  if (vendorData) {
-                    navigation.navigate('AddProduct', { vendorId: vendorData.id });
-                  } else {
-                    Alert.alert('Erreur', 'Boutique introuvable');
+        <FlatList
+          data={filtered}
+          keyExtractor={i => i.id}
+          renderItem={renderProduct}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyText}>Aucun produit dans cette catégorie</Text>
+            </View>
+          }
+          ListFooterComponent={
+            <TouchableOpacity 
+              style={styles.addBtn} 
+              onPress={async () => {
+                if (products.length > 0) {
+                  navigation.navigate('AddProduct', { vendorId: products[0].vendor_id });
+                } else {
+                  // Fetch vendor ID if list is empty
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (user) {
+                    const { data: vendorData } = await supabase
+                      .from('vendors')
+                      .select('id')
+                      .eq('profile_id', user.id)
+                      .single();
+                    if (vendorData) {
+                      navigation.navigate('AddProduct', { vendorId: vendorData.id });
+                    } else {
+                      Alert.alert('Erreur', 'Boutique introuvable');
+                    }
                   }
                 }
-              }
-            }}
-          >
-            <Text style={styles.addBtnText}>+ Ajouter un produit</Text>
-          </TouchableOpacity>
-        }
-      />
+              }}
+            >
+              <Text style={styles.addBtnText}>+ Ajouter un produit</Text>
+            </TouchableOpacity>
+          }
+        />
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container:      { flex: 1, backgroundColor: COLORS.bg },
-  header:         { backgroundColor: COLORS.primary, padding: 16 },
+  flex1:          { flex: 1 },
+  header:         { backgroundColor: COLORS.primary, paddingBottom: 16, paddingHorizontal: 16 },
   headerTitle:    { fontSize: 18, fontWeight: '600', color: COLORS.white },
   headerSub:      { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
   tabs:           { flexDirection: 'row', backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },

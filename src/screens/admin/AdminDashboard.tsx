@@ -1,12 +1,13 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 export const AdminDashboard = () => {
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Tableau de Bord Admin</Text>
       <Text>Bienvenue sur le portail administrateur.</Text>
-    </View>
+    </SafeAreaView>
   );
 };
 

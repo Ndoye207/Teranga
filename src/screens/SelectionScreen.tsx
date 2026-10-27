@@ -1,8 +1,6 @@
 import React from 'react';
-import {
-  View, Text, TouchableOpacity,
-  StyleSheet, SafeAreaView, StatusBar,
-} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
 import Icon from '../components/Icon';
 import { COLORS } from '../constants/colors';
 import { useAuthStore } from '../store/useAuthStore';
@@ -11,22 +9,22 @@ import { useAuthStore } from '../store/useAuthStore';
 const DESIGN_COLORS = {
   headerBg: '#1B3A6B',
   client: { primary: '#1B3A6B', bg: '#E8F0FB' },
-  vendor: { primary: '#E8834A', bg: '#FEF0E8' },
-  livreur: { primary: '#22C55E', bg: '#EDFBF3' },
+  vendor: { primary: '#ea691e', bg: '#FEF0E8' },
+  livreur: { primary: '#1be666', bg: '#d8f7e6' },
   admin: { primary: '#EF4444', bg: '#FEF2F2' },
 };
 
 const ROLES = [
   {
     key: 'Client',
-    label: 'Je suis client',
+    label: 'Acheter',
     sub: 'Commander des repas et légumes',
     icon: 'person',
     ...DESIGN_COLORS.client,
   },
   {
     key: 'Vendor',
-    label: 'Je suis vendeur',
+    label: 'Vendre',
     sub: 'Gérer ma boutique et mes produits',
     icon: 'storefront',
     family: 'material',
@@ -34,7 +32,7 @@ const ROLES = [
   },
   {
     key: 'Livreur',
-    label: 'Je suis livreur',
+    label: 'Livrer',
     sub: 'Accepter et effectuer des livraisons',
     icon: 'bicycle',
     ...DESIGN_COLORS.livreur,
@@ -42,6 +40,7 @@ const ROLES = [
 ];
 
 export default function SelectionScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
 
@@ -50,56 +49,58 @@ export default function SelectionScreen({ navigation }: any) {
     : ROLES;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor={DESIGN_COLORS.headerBg} barStyle="light-content" />
+    <View style={[styles.container, { backgroundColor: DESIGN_COLORS.headerBg }]}>
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
 
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top + 10, 24) }]}>
         <Icon name="basket" size={48} color="#fff" />
-        <Text style={styles.appName}>Teranga Market</Text>
+        <Text style={styles.appName}>Teranga Marché</Text>
         <Text style={styles.appSub}>Livraison alimentaire au Sénégal</Text>
       </View>
 
-      <View style={styles.body}>
-        <Text style={styles.question}>Qui êtes-vous ?</Text>
-        <Text style={styles.questionSub}>
-          Choisissez votre profil pour continuer
-        </Text>
+      <View style={styles.bodyWrapper}>
+        <View style={styles.body}>
+          <Text style={styles.question}>Qui êtes-vous ?</Text>
+          <Text style={styles.questionSub}>
+            Choisissez votre profil pour continuer
+          </Text>
 
-        {displayedRoles.map(role => (
-          <TouchableOpacity
-            key={role.key}
-            style={[styles.roleCard, { borderColor: role.primary }]}
-            onPress={() => navigation.navigate(role.key)}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.roleIcon, { backgroundColor: role.bg }]}>
-              <Icon
-                name={role.icon}
-                family={(role.family as any) ?? 'ion'}
-                size={28}
-                color={role.primary}
-              />
-            </View>
-            <View style={styles.roleInfo}>
-              <Text style={styles.roleLabel}>{role.label}</Text>
-              <Text style={styles.roleSub}>{role.sub}</Text>
-            </View>
-            <Icon name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-        ))}
-      </View>
+          {displayedRoles.map(role => (
+            <TouchableOpacity
+              key={role.key}
+              style={[styles.roleCard, { borderColor: role.primary }]}
+              onPress={() => navigation.navigate(role.key)}
+            >
+              <View style={[styles.roleIcon, { backgroundColor: role.bg }]}>
+                <Icon
+                  name={role.icon}
+                  family={((role as any).family) ?? 'ion'}
+                  size={26}
+                  color={role.primary}
+                />
+              </View>
+              <View style={styles.roleInfo}>
+                <Text style={styles.roleLabel}>{role.label}</Text>
+                <Text style={styles.roleSub}>{role.sub}</Text>
+              </View>
+              <Icon name="chevron-forward" size={20} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          ))}
+        </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Teranga Market · Dakar, Sénégal</Text>
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Teranga Market © 2026</Text>
+        </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  header: { backgroundColor: DESIGN_COLORS.headerBg, paddingTop: 60, paddingBottom: 40, alignItems: 'center', gap: 10 },
-  appName: { fontSize: 28, fontWeight: '700', color: '#fff', marginTop: 8 },
+  bodyWrapper: { flex: 1, backgroundColor: COLORS.bg },
+  header: { backgroundColor: DESIGN_COLORS.headerBg, paddingBottom: 30, alignItems: 'center', gap: 8 },
+  appName: { fontSize: 28, fontWeight: '700', color: '#fff', marginTop: 4 },
   appSub: { fontSize: 14, color: 'rgba(255,255,255,0.75)' },
   body: { flex: 1, padding: 24, gap: 16 },
   question: { fontSize: 22, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 2 },

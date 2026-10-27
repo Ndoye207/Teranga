@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
-import {
-  View, Text, TouchableOpacity, FlatList,
-  StyleSheet, SafeAreaView, StatusBar, Alert,
-} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, StatusBar, Alert } from 'react-native';
 import Icon from '../../components/Icon';
 import { Card } from '../../components/Card';
 import { COLORS } from '../../constants/colors';
 import { useCartStore } from '../../store/useCartStore';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { api } from '../../services/api';
 
 const PAYMENT_METHODS = [
   { id: 'cash',         label: 'Cash',         icon: 'cash',          family: 'ion' },
@@ -19,6 +18,7 @@ const PAYMENT_METHODS = [
 const DELIVERY_FEE = 500;
 
 export default function CartScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { items, updateQty, clearCart, total } = useCartStore();
   const { addOrder } = useOrderStore();
   const { user } = useAuthStore();
@@ -37,22 +37,36 @@ export default function CartScreen({ navigation }: any) {
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Commander',
-          onPress: () => {
-            addOrder({
-              id: `CMD-${Date.now()}`,
-              clientId: user?.id ?? '1',
-              vendorId: items[0].product.vendor_id,
-              vendorName: 'Épicerie Ndeye Fatou',
-              items: [...items],
-              totalAmount: total(),
-              deliveryFee: DELIVERY_FEE,
-              status: 'pending',
-              paymentMethod: payment as any,
-              deliveryAddress: address,
-              createdAt: new Date().toISOString(),
-            });
-            clearCart();
-            navigation.navigate('TrackingTab');
+          onPress: async () => {
+            try {
+              if (user?.id) {
+                await api.createOrder({
+                  buyer_id: user.id,
+                  vendor_id: items[0].product.vendor_id,
+                  total_amount: total() + DELIVERY_FEE,
+                  shipping_address: address,
+                  status: 'pending',
+                });
+              }
+              addOrder({
+                id: `CMD-${Date.now()}`,
+                clientId: user?.id ?? '1',
+                vendorId: items[0].product.vendor_id,
+                vendorName: 'Boutique',
+                items: [...items],
+                totalAmount: total(),
+                deliveryFee: DELIVERY_FEE,
+                status: 'pending',
+                paymentMethod: payment as any,
+                deliveryAddress: address,
+                createdAt: new Date().toISOString(),
+              });
+              clearCart();
+              navigation.navigate('TrackingTab');
+            } catch (err: any) {
+              console.error('Erreur creation commande:', err);
+              Alert.alert('Erreur', err.message || 'Impossible de passer la commande');
+            }
           },
         },
       ]
@@ -61,32 +75,37 @@ export default function CartScreen({ navigation }: any) {
 
   if (items.length === 0) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: COLORS.primary }]} edges={['top']}>
+        <StatusBar backgroundColor={COLORS.primary} barStyle="light-content" />
+
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Mon panier</Text>
         </View>
-        <View style={styles.emptyBox}>
-          <View style={styles.emptyIconBox}>
-            <Icon name="cart-outline" size={48} color={COLORS.border} />
+
+        <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
+          <View style={styles.emptyBox}>
+            <View style={styles.emptyIconBox}>
+              <Icon name="cart-outline" size={48} color={COLORS.border} />
+            </View>
+            <Text style={styles.emptyTitle}>Panier vide</Text>
+            <Text style={styles.emptyText}>
+              Ajoute des produits depuis un vendeur
+            </Text>
+            <TouchableOpacity
+              style={styles.shopBtn}
+              onPress={() => navigation.navigate('Accueil')}
+            >
+              <Icon name="storefront" family="material" size={16} color="#fff" />
+              <Text style={styles.shopBtnText}>Voir les vendeurs</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.emptyTitle}>Panier vide</Text>
-          <Text style={styles.emptyText}>
-            Ajoute des produits depuis un vendeur
-          </Text>
-          <TouchableOpacity
-            style={styles.shopBtn}
-            onPress={() => navigation.navigate('Accueil')}
-          >
-            <Icon name="storefront" family="material" size={16} color="#fff" />
-            <Text style={styles.shopBtnText}>Voir les vendeurs</Text>
-          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: COLORS.primary }]} edges={['top']}>
       <StatusBar backgroundColor={COLORS.primary} barStyle="light-content" />
 
       <View style={styles.header}>
@@ -96,128 +115,114 @@ export default function CartScreen({ navigation }: any) {
         </View>
       </View>
 
-      <FlatList
-        data={items}
-        keyExtractor={i => i.product.id}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <Card style={styles.cartRow}>
-            <View style={[styles.cartIconBox, { backgroundColor: COLORS.bg }]}>
-              <Icon
-                name={
-                  item.product.category === 'plats'    ? 'restaurant' :
-                  item.product.category === 'traiteur' ? 'people'     : 'leaf'
-                }
-                size={22}
-                color={COLORS.primary}
-              />
-            </View>
-            <View style={styles.cartInfo}>
-              <Text style={styles.cartName}>{item.product.name}</Text>
-              <Text style={styles.cartPrice}>
-                {item.product.price.toLocaleString()} F
-              </Text>
-            </View>
-            <View style={styles.qtyControl}>
-              <TouchableOpacity
-                style={styles.qtyBtn}
-                onPress={() => updateQty(item.product.id, item.quantity - 1)}
-              >
-                <Icon name="remove" family="material" size={16} color={COLORS.primary} />
-              </TouchableOpacity>
-              <Text style={styles.qtyVal}>{item.quantity}</Text>
-              <TouchableOpacity
-                style={styles.qtyBtn}
-                onPress={() => updateQty(item.product.id, item.quantity + 1)}
-              >
-                <Icon name="add" family="material" size={16} color={COLORS.primary} />
-              </TouchableOpacity>
-            </View>
-          </Card>
-        )}
-        ListFooterComponent={
-          <View style={styles.footer}>
-
-            {/* Résumé */}
-            <Card style={styles.summaryBox}>
-              <Text style={styles.summaryTitle}>Résumé de commande</Text>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Sous-total</Text>
-                <Text style={styles.summaryValue}>{total().toLocaleString()} F</Text>
+      <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
+        <FlatList
+          data={items}
+          keyExtractor={i => i.product.id}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <Card style={styles.cartRow}>
+              <View style={[styles.cartIconBox, { backgroundColor: COLORS.bg }]}>
+                <Icon
+                  name={
+                    item.product.category === 'plats'    ? 'restaurant' :
+                    item.product.category === 'traiteur' ? 'people'     : 'leaf'
+                  }
+                  size={22}
+                  color={COLORS.primary}
+                />
               </View>
-              <View style={styles.summaryRow}>
-                <View style={styles.summaryLabelRow}>
-                  <Icon name="bicycle" size={14} color={COLORS.textSecondary} />
-                  <Text style={styles.summaryLabel}>Livraison</Text>
+              <View style={styles.cartInfo}>
+                <Text style={styles.cartName} numberOfLines={1}>{item.product.name}</Text>
+                <Text style={styles.cartPrice}>{item.product.price} F × {item.quantity}</Text>
+              </View>
+
+              <View style={styles.qtyControl}>
+                <TouchableOpacity
+                  style={styles.qtyBtn}
+                  onPress={() => updateQty(item.product.id, item.quantity - 1)}
+                >
+                  <Icon name="remove" size={14} color={COLORS.primary} />
+                </TouchableOpacity>
+                <Text style={styles.qtyVal}>{item.quantity}</Text>
+                <TouchableOpacity
+                  style={styles.qtyBtn}
+                  onPress={() => updateQty(item.product.id, item.quantity + 1)}
+                >
+                  <Icon name="add" size={14} color={COLORS.primary} />
+                </TouchableOpacity>
+              </View>
+            </Card>
+          )}
+          ListFooterComponent={
+            <View style={styles.footer}>
+              {/* Adresse de livraison */}
+              <Card style={styles.sectionBox}>
+                <View style={styles.sectionHeader}>
+                  <Icon name="location" size={18} color={COLORS.primary} />
+                  <Text style={styles.sectionTitle}>Adresse de livraison</Text>
                 </View>
-                <Text style={styles.summaryValue}>{DELIVERY_FEE.toLocaleString()} F</Text>
-              </View>
-              <View style={styles.divider} />
-              <View style={styles.summaryRow}>
-                <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>
-                  {(total() + DELIVERY_FEE).toLocaleString()} F
-                </Text>
-              </View>
-            </Card>
+                <Text style={styles.addressText}>{address}</Text>
+              </Card>
 
-            {/* Adresse */}
-            <Card style={styles.sectionBox}>
-              <View style={styles.sectionHeader}>
-                <Icon name="location" size={16} color={COLORS.primary} />
-                <Text style={styles.sectionTitle}>Adresse de livraison</Text>
-              </View>
-              <Text style={styles.addressText}>{address}</Text>
-            </Card>
+              {/* Mode de paiement */}
+              <Card style={styles.sectionBox}>
+                <View style={styles.sectionHeader}>
+                  <Icon name="wallet" size={18} color={COLORS.primary} />
+                  <Text style={styles.sectionTitle}>Mode de paiement</Text>
+                </View>
+                <View style={styles.payRow}>
+                  {PAYMENT_METHODS.map(m => {
+                    const active = payment === m.id;
+                    return (
+                      <TouchableOpacity
+                        key={m.id}
+                        style={[styles.payBtn, active && styles.payBtnActive]}
+                        onPress={() => setPayment(m.id)}
+                      >
+                        <Icon name={m.icon} family={m.family} size={16} color={active ? '#fff' : COLORS.textSecondary} />
+                        <Text style={[styles.payBtnText, active && styles.payBtnTextActive]}>{m.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </Card>
 
-            {/* Paiement */}
-            <Card style={styles.sectionBox}>
-              <View style={styles.sectionHeader}>
-                <Icon name="wallet" size={16} color={COLORS.primary} />
-                <Text style={styles.sectionTitle}>Mode de paiement</Text>
-              </View>
-              <View style={styles.payRow}>
-                {PAYMENT_METHODS.map(m => (
-                  <TouchableOpacity
-                    key={m.id}
-                    style={[styles.payBtn, payment === m.id && styles.payBtnActive]}
-                    onPress={() => setPayment(m.id)}
-                  >
-                    <Icon
-                      name={m.icon}
-                      family={m.family as any}
-                      size={16}
-                      color={payment === m.id ? COLORS.white : COLORS.textSecondary}
-                    />
-                    <Text style={[
-                      styles.payBtnText,
-                      payment === m.id && styles.payBtnTextActive,
-                    ]}>
-                      {m.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </Card>
+              {/* Résumé */}
+              <Card style={styles.summaryBox}>
+                <Text style={styles.summaryTitle}>Résumé</Text>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Sous-total</Text>
+                  <Text style={styles.summaryValue}>{total().toLocaleString()} F</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Livraison</Text>
+                  <Text style={styles.summaryValue}>{DELIVERY_FEE} F</Text>
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.summaryRow}>
+                  <Text style={styles.totalLabel}>Total</Text>
+                  <Text style={styles.totalValue}>{(total() + DELIVERY_FEE).toLocaleString()} F</Text>
+                </View>
+              </Card>
 
-            {/* Commander */}
-            <TouchableOpacity style={styles.orderBtn} onPress={handleOrder} activeOpacity={0.9}>
-              <Icon name="checkmark-circle" size={20} color={COLORS.white} />
-              <Text style={styles.orderBtnText}>
-                Commander · {(total() + DELIVERY_FEE).toLocaleString()} F
-              </Text>
-            </TouchableOpacity>
-
-          </View>
-        }
-      />
+              {/* Bouton Commander */}
+              <TouchableOpacity style={styles.orderBtn} onPress={handleOrder}>
+                <Icon name="checkmark-circle" size={20} color="#fff" />
+                <Text style={styles.orderBtnText}>Valider la commande</Text>
+              </TouchableOpacity>
+            </View>
+          }
+        />
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container:       { flex: 1, backgroundColor: COLORS.bg },
-  header:          { backgroundColor: COLORS.primary, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  flex1:           { flex: 1 },
+  header:          { backgroundColor: COLORS.primary, paddingHorizontal: 16, paddingBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerTitle:     { fontSize: 18, fontWeight: '700', color: COLORS.white },
   headerBadge:     { width: 24, height: 24, borderRadius: 12, backgroundColor: COLORS.accent, alignItems: 'center', justifyContent: 'center' },
   headerBadgeText: { color: COLORS.white, fontSize: 12, fontWeight: '700' },

@@ -6,6 +6,8 @@ import { LivreurStackParamList, LivreurTabParamList } from '../types/navigation'
 import AvailabilityScreen  from '../screens/livreur/AvailabilityScreen';
 import CoursesScreen       from '../screens/livreur/CoursesScreen';
 import CourseDetailScreen  from '../screens/livreur/CourseDetailScreen';
+import CreateCourierScreen from '../screens/livreur/CreateCourierScreen';
+import CourierSettingsScreen from '../screens/livreur/CourierSettingsScreen';
 import RevenusScreen       from '../screens/livreur/RevenusScreen';
 import Icon                from '../components/Icon';
 
@@ -16,16 +18,7 @@ const TabIcon = ({ name }: { name: string }) => ({ color, size }: { color: strin
   <Icon name={name} color={color} size={size} />
 );
 
-function CoursesStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Courses"      component={CoursesScreen} />
-      <Stack.Screen name="CourseDetail" component={CourseDetailScreen} />
-    </Stack.Navigator>
-  );
-}
-
-export default function LivreurNavigator() {
+function LivreurTabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={{
@@ -51,7 +44,7 @@ export default function LivreurNavigator() {
       />
       <Tab.Screen 
         name="CoursesTab" 
-        component={CoursesStack}       
+        component={CoursesScreen}       
         options={{ 
           tabBarLabel: 'Courses',
           tabBarIcon: TabIcon({ name: 'bicycle-outline' })
@@ -66,5 +59,16 @@ export default function LivreurNavigator() {
         }} 
       />
     </Tab.Navigator>
+  );
+}
+
+export default function LivreurNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MainTabs"        component={LivreurTabNavigator} />
+      <Stack.Screen name="CourseDetail"    component={CourseDetailScreen} />
+      <Stack.Screen name="CreateCourier"   component={CreateCourierScreen} />
+      <Stack.Screen name="CourierSettings" component={CourierSettingsScreen} />
+    </Stack.Navigator>
   );
 }

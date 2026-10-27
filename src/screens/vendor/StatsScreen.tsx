@@ -96,7 +96,7 @@ export default function StatsScreen() {
 
 const styles = StyleSheet.create({
   container:       { flex: 1, backgroundColor: COLORS.bg },
-  header:          { backgroundColor: COLORS.primary, padding: 16 },
+  header: { backgroundColor: COLORS.primary, paddingTop: 24, paddingBottom: 16, paddingHorizontal: 16 },
   headerTitle:     { fontSize: 18, fontWeight: '600', color: COLORS.white },
   headerSub:       { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
   ratingCard:      { backgroundColor: COLORS.white, margin: 16, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: COLORS.border, gap: 12 },

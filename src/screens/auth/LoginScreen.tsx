@@ -1,3 +1,4 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image } from 'react-native';
 import { authService } from '../../services/authService';
@@ -31,7 +32,7 @@ export const LoginScreen = ({ navigation }: any) => {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Image 
         source={require('../../assets/logo.png')} 
         style={{ width: 150, height: 150, marginBottom: 20 }}
@@ -68,7 +69,7 @@ export const LoginScreen = ({ navigation }: any) => {
       <TouchableOpacity onPress={() => navigation?.navigate('Register')}>
         <Text style={styles.linkText}>Pas encore de compte ? S'inscrire</Text>
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 };
 

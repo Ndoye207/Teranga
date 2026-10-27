@@ -1,67 +1,71 @@
-import React, { useEffect } from 'react';
-import {
-  View, Text, StyleSheet, SafeAreaView,
-  StatusBar, TouchableOpacity, ScrollView,
-} from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import MapView, { PROVIDER_GOOGLE, Marker } from 'react-native-maps';
 import Icon from '../../components/Icon';
 import { Card } from '../../components/Card';
 import { COLORS } from '../../constants/colors';
 import { useOrderStore } from '../../store/useOrderStore';
-import { OrderStatus } from '../../types';
-
-const STEPS: { status: OrderStatus; label: string; sub: string; icon: string }[] = [
-  { status: 'pending',    label: 'Commande reçue',        sub: 'Votre commande est enregistrée',      icon: 'receipt'          },
-  { status: 'preparing',  label: 'En préparation',         sub: 'Le vendeur prépare votre commande',   icon: 'restaurant'       },
-  { status: 'picked_up',  label: 'Prise en charge',        sub: 'Le livreur a récupéré la commande',   icon: 'bicycle'          },
-  { status: 'delivering', label: 'En cours de livraison',  sub: 'Le livreur est en route',             icon: 'navigate'         },
-  { status: 'delivered',  label: 'Livré',                  sub: 'Commande livrée avec succès',         icon: 'checkmark-circle' },
-];
-
-const STATUS_ORDER: OrderStatus[] = [
-  'pending','confirmed','preparing','ready','picked_up','delivering','delivered',
-];
-
-function getStepState(stepStatus: OrderStatus, currentStatus: OrderStatus) {
-  const si = STATUS_ORDER.indexOf(stepStatus);
-  const ci = STATUS_ORDER.indexOf(currentStatus);
-  if (si < ci)  return 'done';
-  if (si === ci) return 'active';
-  return 'todo';
-}
+import { Order } from '../../types';
 
 export default function TrackingScreen({ navigation }: any) {
-  const { currentOrder, updateOrderStatus } = useOrderStore();
+  const insets = useSafeAreaInsets();
+  const { orders, updateOrderStatus } = useOrderStore();
+  const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
+
+  useEffect(() => {
+    const active = orders.find(o => o.status !== 'delivered');
+    setCurrentOrder(active || orders[orders.length - 1] || null);
+  }, [orders]);
 
   useEffect(() => {
     if (!currentOrder || currentOrder.status === 'delivered') return;
-    const idx  = STATUS_ORDER.indexOf(currentOrder.status);
-    const next = STATUS_ORDER[idx + 1];
-    if (!next) return;
-    const timer = setTimeout(() => updateOrderStatus(currentOrder.id, next), 4000);
+
+    const timer = setTimeout(() => {
+      if (currentOrder.status === 'pending') {
+        updateOrderStatus(currentOrder.id, 'confirmed');
+      } else if (currentOrder.status === 'confirmed') {
+        updateOrderStatus(currentOrder.id, 'preparing');
+      } else if (currentOrder.status === 'preparing') {
+        updateOrderStatus(currentOrder.id, 'ready');
+      } else if (currentOrder.status === 'ready') {
+        updateOrderStatus(currentOrder.id, 'picked_up');
+      } else if (currentOrder.status === 'picked_up') {
+        updateOrderStatus(currentOrder.id, 'delivering');
+      } else if (currentOrder.status === 'delivering') {
+        updateOrderStatus(currentOrder.id, 'delivered');
+      }
+    }, 7000);
+
     return () => clearTimeout(timer);
   }, [currentOrder, updateOrderStatus]);
 
   if (!currentOrder) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: COLORS.primary }]} edges={['top']}>
+        <StatusBar backgroundColor={COLORS.primary} barStyle="light-content" />
+
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Suivi de commande</Text>
         </View>
-        <View style={styles.emptyBox}>
-          <View style={styles.emptyIconBox}>
-            <Icon name="cube-outline" size={48} color={COLORS.border} />
+
+        <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
+          <View style={styles.emptyBox}>
+            <View style={styles.emptyIconBox}>
+              <Icon name="cube-outline" size={48} color={COLORS.border} />
+            </View>
+            <Text style={styles.emptyTitle}>Aucune commande active</Text>
+            <Text style={styles.emptyText}>
+              Passe une commande pour voir son suivi ici
+            </Text>
+            <TouchableOpacity
+              style={styles.shopBtn}
+              onPress={() => navigation.navigate('Accueil')}
+            >
+              <Icon name="storefront" family="material" size={16} color="#fff" />
+              <Text style={styles.shopBtnText}>Commander maintenant</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.emptyTitle}>Aucune commande active</Text>
-          <Text style={styles.emptyText}>
-            Passe une commande pour voir son suivi ici
-          </Text>
-          <TouchableOpacity
-            style={styles.shopBtn}
-            onPress={() => navigation.navigate('Accueil')}
-          >
-            <Icon name="storefront" family="material" size={16} color="#fff" />
-            <Text style={styles.shopBtnText}>Commander maintenant</Text>
-          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -70,7 +74,7 @@ export default function TrackingScreen({ navigation }: any) {
   const isDelivered = currentOrder.status === 'delivered';
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: COLORS.primary }]} edges={['top']}>
       <StatusBar backgroundColor={COLORS.primary} barStyle="light-content" />
 
       <View style={styles.header}>
@@ -80,145 +84,149 @@ export default function TrackingScreen({ navigation }: any) {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
+        <ScrollView showsVerticalScrollIndicator={false}>
 
-        {/* Map placeholder */}
-        <Card style={styles.mapBox}>
-          <View style={styles.mapInner}>
-            <Icon name="map" size={36} color="#2D6A4F" />
-            <Text style={styles.mapText}>Position du livreur en temps réel</Text>
-            <Text style={styles.mapSub}>Google Maps · À connecter</Text>
-          </View>
-          {/* Points simulés */}
-          <View style={[styles.mapDot, styles.mapDotStore]}>
-            <Icon name="storefront" family="material" size={10} color={COLORS.white} />
-          </View>
-          <View style={[styles.mapDot, styles.mapDotHome]}>
-            <Icon name="home" size={10} color={COLORS.white} />
-          </View>
-          <View style={[styles.mapDot, styles.mapDotBike]}>
-            <Icon name="bicycle" size={10} color={COLORS.white} />
-          </View>
-        </Card>
+          {/* Live Google Map */}
+          <Card style={styles.mapBox}>
+            <MapView
+              provider={PROVIDER_GOOGLE}
+              style={styles.map}
+              initialRegion={{
+                latitude: 14.7167,
+                longitude: -17.4677,
+                latitudeDelta: 0.05,
+                longitudeDelta: 0.05,
+              }}
+            >
+              <Marker coordinate={{ latitude: 14.7167, longitude: -17.4677 }} title="Vendeur">
+                <View style={[styles.mapMarker, styles.mapDotStore]}>
+                  <Icon name="storefront" family="material" size={12} color="#fff" />
+                </View>
+              </Marker>
+              <Marker coordinate={{ latitude: 14.7238, longitude: -17.4522 }} title="Livreur">
+                <View style={[styles.mapMarker, styles.mapDotBike]}>
+                  <Icon name="bicycle" size={12} color="#fff" />
+                </View>
+              </Marker>
+            </MapView>
+          </Card>
 
-        {/* Infos commande */}
-        <Card style={styles.infoCard}>
-          <View style={styles.infoRow}>
-            <View style={[styles.infoIconBox, { backgroundColor: COLORS.bg }]}>
-              <Icon name="storefront" family="material" size={16} color={COLORS.primary} />
+          {/* Statut Global */}
+          <Card style={styles.statusBanner}>
+            <View style={[styles.statusIconBox, { backgroundColor: isDelivered ? '#EDFBF3' : '#FEF3C7' }]}>
+              <Icon
+                name={isDelivered ? 'checkmark-circle' : 'time'}
+                size={28}
+                color={isDelivered ? '#22C55E' : '#F59E0B'}
+              />
             </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Vendeur</Text>
-              <Text style={styles.infoValue}>{currentOrder.vendorName}</Text>
-            </View>
-          </View>
-          <View style={styles.infoDivider} />
-          <View style={styles.infoRow}>
-            <View style={[styles.infoIconBox, { backgroundColor: COLORS.bg }]}>
-              <Icon name="wallet" size={16} color={COLORS.accent} />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Total</Text>
-              <Text style={styles.infoValue}>
-                {(currentOrder.totalAmount + currentOrder.deliveryFee).toLocaleString()} F · {currentOrder.paymentMethod}
+            <View style={styles.statusInfo}>
+              <Text style={styles.statusTitle}>
+                {currentOrder.status === 'pending' && 'En attente de validation'}
+                {currentOrder.status === 'confirmed' && 'Commande confirmée'}
+                {currentOrder.status === 'picked_up' && 'Commande récupérée'}
+                {currentOrder.status === 'delivering' && 'En cours de livraison'}
+                {currentOrder.status === 'delivered' && 'Livré avec succès'}
+              </Text>
+              <Text style={styles.statusSub}>
+                {isDelivered ? 'Merci pour votre commande !' : 'Votre livreur est en route.'}
               </Text>
             </View>
-          </View>
-          <View style={styles.infoDivider} />
-          <View style={styles.infoRow}>
-            <View style={[styles.infoIconBox, { backgroundColor: COLORS.bg }]}>
-              <Icon name="location" size={16} color={COLORS.success} />
+          </Card>
+
+          {/* Étapes (Timeline) */}
+          <Card style={styles.timelineCard}>
+            <Text style={styles.timelineTitle}>Progression</Text>
+
+            <TimelineStep
+              icon="document-text"
+              label="Commande validée"
+              sub="Le vendeur a accepté"
+              done={['accepted', 'picked_up', 'delivering', 'delivered'].includes(currentOrder.status)}
+              current={currentOrder.status === 'pending'}
+            />
+            <TimelineStep
+              icon="restaurant"
+              label="Préparation"
+              sub="En cours de cuisine / emballage"
+              done={['picked_up', 'delivering', 'delivered'].includes(currentOrder.status)}
+              current={currentOrder.status === 'confirmed'}
+            />
+            <TimelineStep
+              icon="bicycle"
+              label="En route"
+              sub="Le livreur apporte votre commande"
+              done={['delivering', 'delivered'].includes(currentOrder.status)}
+              current={currentOrder.status === 'picked_up'}
+            />
+            <TimelineStep
+              icon="checkmark-done"
+              label="Livré"
+              sub="Bon appétit !"
+              done={currentOrder.status === 'delivered'}
+              current={currentOrder.status === 'delivering'}
+              isLast
+            />
+          </Card>
+
+          {/* Infos Vendeur & Livreur */}
+          <Card style={styles.infoCard}>
+            <Text style={styles.infoTitle}>Détails</Text>
+            <View style={styles.infoRow}>
+              <Icon name="storefront" family="material" size={18} color={COLORS.primary} />
+              <Text style={styles.infoLabel}>Boutique :</Text>
+              <Text style={styles.infoVal}>{currentOrder.vendorName}</Text>
             </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Adresse</Text>
-              <Text style={styles.infoValue}>{currentOrder.deliveryAddress}</Text>
+            <View style={styles.infoRow}>
+              <Icon name="location" size={18} color={COLORS.primary} />
+              <Text style={styles.infoLabel}>Adresse :</Text>
+              <Text style={styles.infoVal}>{currentOrder.deliveryAddress}</Text>
             </View>
-          </View>
-        </Card>
+          </Card>
 
-        {/* Étapes */}
-        <Card style={styles.stepsCard}>
-          <Text style={styles.stepsTitle}>Progression</Text>
-          {STEPS.map((step, index) => {
-            const state = getStepState(step.status, currentOrder.status);
-            return (
-              <View key={step.status} style={styles.stepRow}>
-                <View style={styles.stepLeft}>
-                  <View style={[
-                    styles.stepDot,
-                    state === 'done'   && styles.stepDotDone,
-                    state === 'active' && styles.stepDotActive,
-                  ]}>
-                    {state === 'done' ? (
-                      <Icon name="checkmark" size={14} color={COLORS.success} />
-                    ) : (
-                      <Icon
-                        name={step.icon}
-                        size={14}
-                        color={state === 'active' ? COLORS.white : COLORS.textSecondary}
-                      />
-                    )}
-                  </View>
-                  {index < STEPS.length - 1 && (
-                    <View style={[
-                      styles.stepLine,
-                      state === 'done' && styles.stepLineDone,
-                    ]} />
-                  )}
-                </View>
-                <View style={styles.stepContent}>
-                  <Text style={[
-                    styles.stepLabel,
-                    state === 'todo'   && styles.stepLabelTodo,
-                    state === 'active' && styles.stepLabelActive,
-                  ]}>
-                    {step.label}
-                  </Text>
-                  <Text style={[
-                    styles.stepSub,
-                    state === 'active' && { color: COLORS.success },
-                  ]}>
-                    {state === 'active' ? '● En cours...' : step.sub}
-                  </Text>
-                </View>
-              </View>
-            );
-          })}
-        </Card>
+          {/* Actions si livré */}
+          {isDelivered && (
+            <TouchableOpacity
+              style={styles.chatBtn}
+              onPress={() => navigation.navigate('Rating', { order: currentOrder })}
+            >
+              <Icon name="star" size={18} color="#fff" />
+              <Text style={styles.chatBtnText}>Noter la commande</Text>
+            </TouchableOpacity>
+          )}
 
-        {/* Actions */}
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.callBtn}>
-            <Icon name="call" size={18} color="#fff" />
-            <Text style={styles.callBtnText}>Appeler</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.chatBtn}>
-            <Icon name="chatbubble" size={18} color="#fff" />
-            <Text style={styles.chatBtnText}>Chat</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Notation */}
-        {isDelivered && (
-          <TouchableOpacity
-            style={styles.rateBtn}
-            onPress={() => navigation.navigate('Rating', { order: currentOrder })}
-            activeOpacity={0.85}
-          >
-            <Icon name="star" size={20} color="#92400E" />
-            <Text style={styles.rateBtnText}>Noter la commande</Text>
-            <Icon name="chevron-forward" size={18} color="#92400E" />
-          </TouchableOpacity>
-        )}
-
-      </ScrollView>
+        </ScrollView>
+      </View>
     </SafeAreaView>
+  );
+}
+
+function TimelineStep({ icon, label, sub, done, current, isLast }: any) {
+  return (
+    <View style={styles.stepRow}>
+      <View style={styles.stepIndicatorCol}>
+        <View style={[
+          styles.stepIconCircle,
+          done && styles.stepDone,
+          current && styles.stepCurrent
+        ]}>
+          <Icon name={icon} size={14} color={done || current ? '#fff' : COLORS.textSecondary} />
+        </View>
+        {!isLast && <View style={[styles.stepLine, done && styles.stepLineDone]} />}
+      </View>
+      <View style={styles.stepContent}>
+        <Text style={[styles.stepLabel, (done || current) && styles.stepLabelActive]}>{label}</Text>
+        <Text style={styles.stepSub}>{sub}</Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container:      { flex: 1, backgroundColor: COLORS.bg },
-  header:         { backgroundColor: COLORS.primary, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  flex1:          { flex: 1 },
+  header:         { backgroundColor: COLORS.primary, paddingHorizontal: 16, paddingBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerTitle:    { fontSize: 18, fontWeight: '700', color: COLORS.white },
   headerBadge:    { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   headerBadgeText:{ fontSize: 12, color: COLORS.white, fontWeight: '600' },
@@ -228,40 +236,34 @@ const styles = StyleSheet.create({
   emptyText:      { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' },
   shopBtn:        { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.primary, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12, marginTop: 8 },
   shopBtnText:    { color: COLORS.white, fontWeight: '600', fontSize: 14 },
-  mapBox:         { margin: 16, height: 150, backgroundColor: '#E8F4F0', borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: '#C8E6C9', position: 'relative' },
-  mapInner:       { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
-  mapText:        { fontSize: 13, fontWeight: '600', color: '#2D6A4F' },
-  mapSub:         { fontSize: 11, color: '#52796F' },
-  mapDot:         { position: 'absolute', width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  infoCard:       { backgroundColor: COLORS.white, marginHorizontal: 16, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, marginBottom: 12, overflow: 'hidden' },
-  infoRow:        { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  infoIconBox:    { width: 36, height: 36, borderRadius: 10, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center' },
-  infoContent:    { flex: 1 },
-  infoLabel:      { fontSize: 11, color: COLORS.textSecondary, marginBottom: 2 },
-  infoValue:      { fontSize: 13, fontWeight: '600', color: COLORS.textPrimary },
-  infoDivider:    { height: 1, backgroundColor: COLORS.border, marginHorizontal: 14 },
-  stepsCard:      { backgroundColor: COLORS.white, marginHorizontal: 16, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 12 },
-  stepsTitle:     { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 16 },
+  mapBox:         { margin: 16, marginBottom: 0, height: 180, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
+  map:            { flex: 1 },
+  mapMarker:      { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
+  mapDotStore:    { backgroundColor: COLORS.primary },
+  mapDotBike:     { backgroundColor: COLORS.accent },
+  statusBanner:   { margin: 16, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: COLORS.white, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: COLORS.border },
+  statusIconBox:  { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+  statusInfo:     { flex: 1 },
+  statusTitle:    { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary },
+  statusSub:      { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
+  timelineCard:   { margin: 16, marginTop: 0, marginBottom: 12, backgroundColor: COLORS.white, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: COLORS.border, gap: 4 },
+  timelineTitle:  { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   stepRow:        { flexDirection: 'row', gap: 12 },
-  stepLeft:       { alignItems: 'center', width: 32 },
-  stepDot:        { width: 32, height: 32, borderRadius: 16, backgroundColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
-  stepDotDone:    { backgroundColor: COLORS.success },
-  stepDotActive:  { backgroundColor: COLORS.accent },
-  stepLine:       { width: 2, flex: 1, backgroundColor: COLORS.border, marginVertical: 4, minHeight: 20 },
-  stepLineDone:   { backgroundColor: COLORS.success },
-  stepContent:    { flex: 1, paddingBottom: 20 },
-  stepLabel:      { fontSize: 13, fontWeight: '600', color: COLORS.textPrimary },
-  stepLabelTodo:  { color: COLORS.textSecondary, fontWeight: '400' },
-  stepLabelActive:{ color: COLORS.accent },
-  stepSub:        { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
-  actions:        { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 12 },
-  callBtn:        { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.accent, borderRadius: 14, padding: 14 },
-  callBtnText:    { color: COLORS.white, fontWeight: '700', fontSize: 14 },
-  chatBtn:        { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, borderRadius: 14, padding: 14 },
-  chatBtnText:    { color: COLORS.white, fontWeight: '700', fontSize: 14 },
-  rateBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#FEF3C7', marginHorizontal: 16, borderRadius: 14, padding: 14, marginBottom: 24, borderWidth: 1, borderColor: '#FCD34D' },
-  rateBtnText:    { color: '#92400E', fontWeight: '700', fontSize: 14, flex: 1, textAlign: 'center' },
-  mapDotStore:    { top: 30, left: 40, backgroundColor: COLORS.primary },
-  mapDotHome:     { bottom: 30, right: 40, backgroundColor: COLORS.accent },
-  mapDotBike:     { top: '45%', left: '50%', backgroundColor: COLORS.success },
+  stepIndicatorCol:{ alignItems: 'center', width: 28 },
+  stepIconCircle: { width: 26, height: 26, borderRadius: 13, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border },
+  stepDone:       { backgroundColor: '#22C55E', borderColor: '#22C55E' },
+  stepCurrent:    { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  stepLine:       { width: 2, flex: 1, backgroundColor: COLORS.border, marginVertical: 4 },
+  stepLineDone:   { backgroundColor: '#22C55E' },
+  stepContent:    { flex: 1, paddingBottom: 16 },
+  stepLabel:      { fontSize: 14, fontWeight: '500', color: COLORS.textSecondary },
+  stepLabelActive:{ fontWeight: '700', color: COLORS.textPrimary },
+  stepSub:        { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  infoCard:       { margin: 16, marginTop: 0, marginBottom: 16, backgroundColor: COLORS.white, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: COLORS.border, gap: 10 },
+  infoTitle:      { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 4 },
+  infoRow:        { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  infoLabel:      { fontSize: 13, color: COLORS.textSecondary, width: 70 },
+  infoVal:        { fontSize: 13, fontWeight: '600', color: COLORS.textPrimary, flex: 1 },
+  chatBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, borderRadius: 14, padding: 14, marginHorizontal: 16, marginBottom: 24 },
+  chatBtnText:    { color: COLORS.white, fontSize: 14, fontWeight: '700' },
 });

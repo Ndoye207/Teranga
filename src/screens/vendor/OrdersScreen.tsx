@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList,
-  StyleSheet, SafeAreaView, StatusBar, ActivityIndicator,
+  StyleSheet, StatusBar, ActivityIndicator, Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/colors';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useOrderSubscription } from '../../hooks/useOrderSubscription';
 import { Database } from '../../types/supabase';
 
 type DBOrder = Database['public']['Tables']['orders']['Row'];
@@ -43,6 +45,20 @@ export default function OrdersScreen() {
     fetchOrders();
   }, [user]);
 
+  useOrderSubscription(
+    (newOrder) => {
+      if (newOrder.vendor_id === user?.id || user?.role === 'admin') {
+        setOrders(prev => [newOrder, ...prev]);
+        Alert.alert('🔔 Nouvelle commande !', `Une nouvelle commande #${newOrder.id.slice(0, 8)} est arrivée.`);
+      }
+    },
+    (updatedOrder) => {
+      if (updatedOrder.vendor_id === user?.id || user?.role === 'admin') {
+        setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+      }
+    }
+  );
+
   const filtered = filter === 'all'
     ? orders
     : orders.filter(o => o.status === filter);
@@ -73,7 +89,7 @@ export default function OrdersScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: COLORS.primary }]} edges={['top']}>
       <StatusBar backgroundColor={COLORS.primary} barStyle="light-content" />
 
       <View style={styles.header}>
@@ -81,39 +97,42 @@ export default function OrdersScreen() {
         <Text style={styles.headerSub}>{orders.length} commandes</Text>
       </View>
 
-      <View style={styles.filters}>
-        {['all', 'pending', 'preparing', 'ready', 'delivered'].map(f => (
-          <TouchableOpacity
-            key={f}
-            style={[styles.filterBtn, filter === f && styles.filterBtnActive]}
-            onPress={() => setFilter(f)}
-          >
-            <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-              {f === 'all' ? 'Toutes' : STATUS_CONFIG[f]?.label || f}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
+        <View style={styles.filters}>
+          {['all', 'pending', 'preparing', 'ready', 'delivered'].map(f => (
+            <TouchableOpacity
+              key={f}
+              style={[styles.filterBtn, filter === f && styles.filterBtnActive]}
+              onPress={() => setFilter(f)}
+            >
+              <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
+                {f === 'all' ? 'Toutes' : STATUS_CONFIG[f]?.label || f}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-      <FlatList
-        data={filtered}
-        keyExtractor={i => i.id}
-        renderItem={renderOrder}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>Aucune commande</Text>
-          </View>
-        }
-      />
+        <FlatList
+          data={filtered}
+          keyExtractor={i => i.id}
+          renderItem={renderOrder}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyText}>Aucune commande</Text>
+            </View>
+          }
+        />
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container:       { flex: 1, backgroundColor: COLORS.bg },
-  header:          { backgroundColor: COLORS.primary, padding: 16 },
+  flex1:           { flex: 1 },
+  header:          { backgroundColor: COLORS.primary, paddingBottom: 16, paddingHorizontal: 16 },
   headerTitle:     { fontSize: 18, fontWeight: '600', color: COLORS.white },
   headerSub:       { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
   filters:         { flexDirection: 'row', backgroundColor: COLORS.white, paddingHorizontal: 12, paddingVertical: 10, gap: 6, borderBottomWidth: 1, borderBottomColor: COLORS.border },

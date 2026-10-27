@@ -5,7 +5,7 @@ export const authService = {
   /**
    * Inscription d'un nouvel utilisateur (Buyer / Vendor)
    */
-  async signUp(email: string, password: string, fullName: string, role: 'buyer' | 'vendor' = 'buyer') {
+  async signUp(email: string, password: string, fullName: string, role: 'buyer' | 'vendor' | 'livreur' = 'buyer') {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,

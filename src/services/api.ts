@@ -75,9 +75,20 @@ export const api = {
   },
 
   // Commandes
-  createOrder: async (order: Order) => {
-    const { data, error } = await supabase.from('orders').insert([order]);
-    if (error) throw error;
+  createOrder: async (order: any) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Vous devez être connecté pour passer une commande.');
+    }
+
+    const { data, error } = await supabase.from('orders').insert([{
+      ...order,
+      buyer_id: user.id,
+    }]);
+    if (error) {
+      console.error('Supabase createOrder error:', error);
+      throw error;
+    }
     return data;
   },
 
@@ -114,5 +125,25 @@ export const api = {
       .eq('status', 'ready');
     if (error) throw error;
     return data || [];
+  },
+
+  getAllCourses: async () => {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*, vendors(store_name, address)')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  updateOrderStatus: async (orderId: string, status: string) => {
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ status })
+      .eq('id', orderId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 };
