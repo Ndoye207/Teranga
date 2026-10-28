@@ -89,7 +89,7 @@ export const LoginScreen = ({ navigation }: any) => {
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.title}>Teranga Market</Text>
+            <Text style={styles.title}>Teranga Marché</Text>
             <Text style={styles.subtitle}>Connectez-vous pour continuer</Text>
           </View>
 
