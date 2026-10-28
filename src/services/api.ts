@@ -122,7 +122,7 @@ export const api = {
     const { data, error } = await supabase
       .from('orders')
       .select('*, vendors(store_name, address)')
-      .eq('status', 'ready');
+      .in('status', ['pending', 'confirmed', 'preparing', 'ready']);
     if (error) throw error;
     return data || [];
   },

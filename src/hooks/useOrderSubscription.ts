@@ -6,8 +6,10 @@ export const useOrderSubscription = (
   onUpdate?: (payload: any) => void
 ) => {
   useEffect(() => {
-    const channel = supabase
-      .channel('public:orders-realtime')
+    const channelName = `orders-channel-${Date.now()}-${Math.random()}`;
+    const channel = supabase.channel(channelName);
+
+    channel
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'orders' },

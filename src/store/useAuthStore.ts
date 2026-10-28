@@ -8,11 +8,13 @@ interface AuthState {
   token: string | null;
   isLoading: boolean;
   setUser: (user: DBProfile | null, token?: string | null) => void;
-  setAdminUser: () => void;
-  fetchProfile: () => Promise<void>;
+  fetchProfile: (silent?: boolean) => Promise<void>;
   initializeAuth: () => Promise<void>;
   logout: () => Promise<void>;
 }
+
+// Une seule souscription aux événements d'authentification pour toute l'app
+let authSubscription: { unsubscribe: () => void } | null = null;
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -21,47 +23,52 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setUser: (user, token = null) => set({ user, token }),
 
-  setAdminUser: () => {
-    const adminUser: DBProfile = {
-      id: 'admin-id',
-      email: 'admin@teranga.market',
-      full_name: 'Administrateur',
-      role: 'admin',
-      avatar_url: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      phone: null
-    };
-    set({ user: adminUser, token: 'admin-token', isLoading: false });
-  },
-
-  fetchProfile: async () => {
-    set({ isLoading: true });
+  /**
+   * silent = true : recharge le profil sans afficher l'écran de chargement
+   * (sinon la navigation est démontée et l'utilisateur perd son écran).
+   */
+  fetchProfile: async (silent = false) => {
+    if (!silent) set({ isLoading: true });
     try {
-      const profile = await authService.getCurrentProfile();
       const session = await authService.getSession();
-      set({ 
-        user: profile, 
-        token: session?.access_token || null, 
-        isLoading: false 
-      });
+      if (!session) {
+        set({ user: null, token: null, isLoading: false });
+        return;
+      }
+      const profile = await authService.getCurrentProfile();
+      set({ user: profile, token: session.access_token, isLoading: false });
     } catch (error) {
       console.error('Erreur lors du chargement du profil :', error);
-      set({ user: null, token: null, isLoading: false });
+      if (!silent) {
+        set({ user: null, token: null, isLoading: false });
+      }
     }
   },
 
   initializeAuth: async () => {
+    if (authSubscription) return;
+
     set({ isLoading: true });
     await get().fetchProfile();
 
-    supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        await get().fetchProfile();
-      } else {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      // Pas d'await ni d'appel Supabase direct dans ce callback
+      // (risque de blocage connu de supabase-js).
+      if (event === 'TOKEN_REFRESHED') {
+        set({ token: session?.access_token ?? null });
+        return;
+      }
+      if (event === 'SIGNED_OUT' || !session?.user) {
         set({ user: null, token: null, isLoading: false });
+        return;
+      }
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        setTimeout(() => {
+          get().fetchProfile(true);
+        }, 0);
       }
     });
+    authSubscription = data.subscription;
   },
 
   logout: async () => {
