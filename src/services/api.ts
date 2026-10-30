@@ -5,7 +5,7 @@ import { getPickedBase64, releasePicked } from '../utils/pickImage';
 
 type Vendor = Database['public']['Tables']['vendors']['Row'];
 type Product = Database['public']['Tables']['products']['Row'];
-type Order = Database['public']['Tables']['orders']['Insert'];
+// type Order = Database['public']['Tables']['orders']['Insert'];
 type DBOrder = Database['public']['Tables']['orders']['Row'];
 
 // Ce que le client et le vendeur ont le droit de voir sur le livreur de LEUR commande

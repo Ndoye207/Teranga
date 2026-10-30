@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, TouchableOpacity, FlatList, StyleSheet, StatusBar, Alert, TextInput } from 'react-native';
 import Icon from '../../components/Icon';
 import { Card } from '../../components/Card';
@@ -21,7 +21,6 @@ const PAYMENT_LABEL = { cash: 'Cash', wave: 'Wave', orange_money: 'Orange Money'
 const DELIVERY_FEE = 500;
 
 export default function CartScreen({ navigation }: any) {
-  const insets = useSafeAreaInsets();
   const { items, vendorId, updateQty, clearCart, total } = useCartStore();
   const { user } = useAuthStore();
   const [payment, setPayment] = useState<'cash' | 'wave' | 'orange_money'>('cash');
