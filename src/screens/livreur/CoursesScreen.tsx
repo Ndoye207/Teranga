@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList,
   StyleSheet, StatusBar, ActivityIndicator, Alert,
@@ -40,13 +40,7 @@ export default function CoursesScreen({ navigation }: any) {
 
   useEffect(() => navigation.addListener('focus', refreshProfile), [navigation, refreshProfile]);
 
-  useEffect(() => {
-    if (hasProfile) {
-      fetchOrders();
-    }
-  }, [hasProfile]);
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       if (!user) return;
       const data = await api.getCoursesForCourier(user.id);
@@ -55,7 +49,13 @@ export default function CoursesScreen({ navigation }: any) {
       console.error('Erreur chargement courses:', error);
       Alert.alert('Erreur', 'Impossible de charger les courses. Vérifiez votre connexion.');
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (hasProfile) {
+      fetchOrders();
+    }
+  }, [hasProfile, fetchOrders]);
 
   useOrderSubscription(
     () => { if (hasProfile) fetchOrders(); },
