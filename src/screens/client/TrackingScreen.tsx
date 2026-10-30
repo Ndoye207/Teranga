@@ -1,68 +1,106 @@
-import React, { useState, useEffect } from 'react';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
-import MapView, { PROVIDER_GOOGLE, Marker } from 'react-native-maps';
+import React, { useState, useEffect, useCallback } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar,
+  RefreshControl, ActivityIndicator,
+} from 'react-native';
 import Icon from '../../components/Icon';
 import { Card } from '../../components/Card';
 import { COLORS } from '../../constants/colors';
-import { useOrderStore } from '../../store/useOrderStore';
-import { Order } from '../../types';
+import { api } from '../../services/api';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useOrderSubscription } from '../../hooks/useOrderSubscription';
+import CourierCard from '../../components/CourierCard';
+
+// Étape de la frise selon le statut en base
+const STEP_INDEX: Record<string, number> = {
+  pending: 0, confirmed: 1, preparing: 2, ready: 3, picked_up: 4, delivering: 4, delivered: 5,
+};
+
+const STEPS = [
+  { icon: 'document-text', label: 'Commande envoyée',  sub: 'En attente du vendeur' },
+  { icon: 'checkmark',     label: 'Commande acceptée', sub: 'Le vendeur a accepté' },
+  { icon: 'restaurant',    label: 'Préparation',       sub: 'En cours de préparation' },
+  { icon: 'cube',          label: 'Prête',             sub: 'En attente du livreur' },
+  { icon: 'bicycle',       label: 'En route',          sub: 'Le livreur apporte votre commande' },
+  { icon: 'checkmark-done',label: 'Livrée',            sub: 'Bon appétit !' },
+];
+
+const BANNER: Record<string, { title: string; sub: string }> = {
+  pending:    { title: 'En attente du vendeur',  sub: 'Le vendeur va accepter ou refuser votre commande.' },
+  confirmed:  { title: 'Commande acceptée',      sub: 'Le vendeur va commencer la préparation.' },
+  preparing:  { title: 'En préparation',         sub: 'Votre commande est en cours de préparation.' },
+  ready:      { title: 'Commande prête',         sub: 'Nous attendons un livreur.' },
+  picked_up:  { title: 'Commande récupérée',     sub: 'Le livreur a récupéré votre commande.' },
+  delivering: { title: 'En cours de livraison',  sub: 'Votre livreur est en route.' },
+  delivered:  { title: 'Livrée avec succès',     sub: 'Merci pour votre commande !' },
+};
+
+const PAYMENT_LABEL: Record<string, string> = { cash: 'Cash', wave: 'Wave', orange_money: 'Orange Money' };
 
 export default function TrackingScreen({ navigation }: any) {
-  const insets = useSafeAreaInsets();
-  const { orders, updateOrderStatus } = useOrderStore();
-  const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
+  const { user } = useAuthStore();
+  const [orders, setOrders] = useState<any[]>([]);
+  const [items, setItems] = useState<{ id: string; product_name: string; quantity: number; unit_price: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
+  const load = useCallback(async () => {
+    if (!user) { setLoading(false); return; }
+    try {
+      setOrders(await api.getMyOrders(user.id));
+    } catch (err) {
+      console.error('Erreur chargement commandes client:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [user]);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => navigation.addListener('focus', load), [navigation, load]);
+
+  // Temps réel : tout changement sur une de MES commandes recharge la liste
+  useOrderSubscription(
+    (o) => { if (o.buyer_id === user?.id) load(); },
+    (o) => { if (o.buyer_id === user?.id) load(); },
+  );
+
+  // Commande affichée : la plus récente encore en cours, sinon la dernière
+  const current =
+    orders.find(o => o.status !== 'delivered' && o.status !== 'cancelled') || orders[0] || null;
+
+  const currentId: string | undefined = current?.id;
   useEffect(() => {
-    const active = orders.find(o => o.status !== 'delivered');
-    setCurrentOrder(active || orders[orders.length - 1] || null);
-  }, [orders]);
+    setItems([]);
+    if (!currentId) return;
+    api.getOrderItems(currentId).then(setItems).catch(() => {});
+  }, [currentId]);
 
-  useEffect(() => {
-    if (!currentOrder || currentOrder.status === 'delivered') return;
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.emptyBox, { backgroundColor: COLORS.bg }]}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
 
-    const timer = setTimeout(() => {
-      if (currentOrder.status === 'pending') {
-        updateOrderStatus(currentOrder.id, 'confirmed');
-      } else if (currentOrder.status === 'confirmed') {
-        updateOrderStatus(currentOrder.id, 'preparing');
-      } else if (currentOrder.status === 'preparing') {
-        updateOrderStatus(currentOrder.id, 'ready');
-      } else if (currentOrder.status === 'ready') {
-        updateOrderStatus(currentOrder.id, 'picked_up');
-      } else if (currentOrder.status === 'picked_up') {
-        updateOrderStatus(currentOrder.id, 'delivering');
-      } else if (currentOrder.status === 'delivering') {
-        updateOrderStatus(currentOrder.id, 'delivered');
-      }
-    }, 7000);
-
-    return () => clearTimeout(timer);
-  }, [currentOrder, updateOrderStatus]);
-
-  if (!currentOrder) {
+  if (!current) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: COLORS.primary }]} edges={['top']}>
         <StatusBar backgroundColor={COLORS.primary} barStyle="light-content" />
-
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Suivi de commande</Text>
         </View>
-
         <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
           <View style={styles.emptyBox}>
             <View style={styles.emptyIconBox}>
               <Icon name="cube-outline" size={48} color={COLORS.border} />
             </View>
-            <Text style={styles.emptyTitle}>Aucune commande active</Text>
-            <Text style={styles.emptyText}>
-              Passe une commande pour voir son suivi ici
-            </Text>
-            <TouchableOpacity
-              style={styles.shopBtn}
-              onPress={() => navigation.navigate('Accueil')}
-            >
-              <Icon name="storefront" family="material" size={16} color="#fff" />
+            <Text style={styles.emptyTitle}>Aucune commande</Text>
+            <Text style={styles.emptyText}>Passe une commande pour voir son suivi ici</Text>
+            <TouchableOpacity style={styles.shopBtn} onPress={() => navigation.navigate('Accueil')}>
+              <Icon name="storefront" size={16} color="#fff" />
               <Text style={styles.shopBtnText}>Commander maintenant</Text>
             </TouchableOpacity>
           </View>
@@ -71,7 +109,11 @@ export default function TrackingScreen({ navigation }: any) {
     );
   }
 
-  const isDelivered = currentOrder.status === 'delivered';
+  const status: string = current.status || 'pending';
+  const isDelivered = status === 'delivered';
+  const isCancelled = status === 'cancelled';
+  const stepIdx = STEP_INDEX[status] ?? 0;
+  const banner = BANNER[status] || BANNER.pending;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: COLORS.primary }]} edges={['top']}>
@@ -80,122 +122,107 @@ export default function TrackingScreen({ navigation }: any) {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Suivi de commande</Text>
         <View style={styles.headerBadge}>
-          <Text style={styles.headerBadgeText}>#{currentOrder.id.slice(-5)}</Text>
+          <Text style={styles.headerBadgeText}>#{current.id.slice(0, 8)}</Text>
         </View>
       </View>
 
       <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
-        <ScrollView showsVerticalScrollIndicator={false}>
-
-          {/* Live Google Map */}
-          <Card style={styles.mapBox}>
-            <MapView
-              provider={PROVIDER_GOOGLE}
-              style={styles.map}
-              initialRegion={{
-                latitude: 14.7167,
-                longitude: -17.4677,
-                latitudeDelta: 0.05,
-                longitudeDelta: 0.05,
-              }}
-            >
-              <Marker coordinate={{ latitude: 14.7167, longitude: -17.4677 }} title="Vendeur">
-                <View style={[styles.mapMarker, styles.mapDotStore]}>
-                  <Icon name="storefront" family="material" size={12} color="#fff" />
-                </View>
-              </Marker>
-              <Marker coordinate={{ latitude: 14.7238, longitude: -17.4522 }} title="Livreur">
-                <View style={[styles.mapMarker, styles.mapDotBike]}>
-                  <Icon name="bicycle" size={12} color="#fff" />
-                </View>
-              </Marker>
-            </MapView>
-          </Card>
-
-          {/* Statut Global */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
+        >
+          {/* Statut global */}
           <Card style={styles.statusBanner}>
-            <View style={[styles.statusIconBox, { backgroundColor: isDelivered ? '#EDFBF3' : '#FEF3C7' }]}>
+            <View style={[styles.statusIconBox, { backgroundColor: isCancelled ? '#FEE2E2' : isDelivered ? '#EDFBF3' : '#FEF3C7' }]}>
               <Icon
-                name={isDelivered ? 'checkmark-circle' : 'time'}
+                name={isCancelled ? 'close-circle' : isDelivered ? 'checkmark-circle' : 'time'}
                 size={28}
-                color={isDelivered ? '#22C55E' : '#F59E0B'}
+                color={isCancelled ? '#DC2626' : isDelivered ? '#22C55E' : '#F59E0B'}
               />
             </View>
             <View style={styles.statusInfo}>
-              <Text style={styles.statusTitle}>
-                {currentOrder.status === 'pending' && 'En attente de validation'}
-                {currentOrder.status === 'confirmed' && 'Commande confirmée'}
-                {currentOrder.status === 'picked_up' && 'Commande récupérée'}
-                {currentOrder.status === 'delivering' && 'En cours de livraison'}
-                {currentOrder.status === 'delivered' && 'Livré avec succès'}
-              </Text>
+              <Text style={styles.statusTitle}>{isCancelled ? 'Commande refusée' : banner.title}</Text>
               <Text style={styles.statusSub}>
-                {isDelivered ? 'Merci pour votre commande !' : 'Votre livreur est en route.'}
+                {isCancelled ? 'Le vendeur n\'a pas pu honorer votre commande.' : banner.sub}
               </Text>
             </View>
           </Card>
 
-          {/* Étapes (Timeline) */}
-          <Card style={styles.timelineCard}>
-            <Text style={styles.timelineTitle}>Progression</Text>
+          {isCancelled ? (
+            <View style={styles.cancelBox}>
+              <Text style={styles.cancelTitle}>Motif : {current.cancel_reason || 'non précisé'}</Text>
+              <Text style={styles.cancelText}>Vous n'avez rien à payer. Vous pouvez commander ailleurs.</Text>
+            </View>
+          ) : (
+            <Card style={styles.timelineCard}>
+              <Text style={styles.timelineTitle}>Progression</Text>
+              {STEPS.map((s, i) => (
+                <TimelineStep
+                  key={s.label}
+                  icon={s.icon}
+                  label={s.label}
+                  sub={s.sub}
+                  done={i < stepIdx || isDelivered}
+                  current={i === stepIdx && !isDelivered}
+                  isLast={i === STEPS.length - 1}
+                />
+              ))}
+            </Card>
+          )}
 
-            <TimelineStep
-              icon="document-text"
-              label="Commande validée"
-              sub="Le vendeur a accepté"
-              done={['accepted', 'picked_up', 'delivering', 'delivered'].includes(currentOrder.status)}
-              current={currentOrder.status === 'pending'}
+          {/* Livreur */}
+          {current.livreur_id && !isCancelled && (
+            <CourierCard
+              key={`${current.id}:${current.livreur_id}`}
+              orderId={current.id}
+              variant="client"
+              allowCall={!isDelivered}
+              style={{ margin: 16, marginTop: 0 }}
             />
-            <TimelineStep
-              icon="restaurant"
-              label="Préparation"
-              sub="En cours de cuisine / emballage"
-              done={['picked_up', 'delivering', 'delivered'].includes(currentOrder.status)}
-              current={currentOrder.status === 'confirmed'}
-            />
-            <TimelineStep
-              icon="bicycle"
-              label="En route"
-              sub="Le livreur apporte votre commande"
-              done={['delivering', 'delivered'].includes(currentOrder.status)}
-              current={currentOrder.status === 'picked_up'}
-            />
-            <TimelineStep
-              icon="checkmark-done"
-              label="Livré"
-              sub="Bon appétit !"
-              done={currentOrder.status === 'delivered'}
-              current={currentOrder.status === 'delivering'}
-              isLast
-            />
-          </Card>
+          )}
 
-          {/* Infos Vendeur & Livreur */}
+          {/* Détails */}
           <Card style={styles.infoCard}>
             <Text style={styles.infoTitle}>Détails</Text>
             <View style={styles.infoRow}>
-              <Icon name="storefront" family="material" size={18} color={COLORS.primary} />
+              <Icon name="storefront" size={18} color={COLORS.primary} />
               <Text style={styles.infoLabel}>Boutique :</Text>
-              <Text style={styles.infoVal}>{currentOrder.vendorName}</Text>
+              <Text style={styles.infoVal}>{current.vendors?.store_name || 'Boutique'}</Text>
             </View>
             <View style={styles.infoRow}>
               <Icon name="location" size={18} color={COLORS.primary} />
               <Text style={styles.infoLabel}>Adresse :</Text>
-              <Text style={styles.infoVal}>{currentOrder.deliveryAddress}</Text>
+              <Text style={styles.infoVal}>{current.shipping_address}</Text>
+            </View>
+            {items.length > 0 && (
+              <View style={styles.infoRow}>
+                <Icon name="basket" size={18} color={COLORS.primary} />
+                <Text style={styles.infoLabel}>Articles :</Text>
+                <Text style={styles.infoVal}>
+                  {items.map(i => `${i.quantity} × ${i.product_name}`).join(', ')}
+                </Text>
+              </View>
+            )}
+            <View style={styles.infoRow}>
+              <Icon name="wallet" size={18} color={COLORS.primary} />
+              <Text style={styles.infoLabel}>Paiement :</Text>
+              <Text style={styles.infoVal}>
+                {PAYMENT_LABEL[current.payment_method || ''] || '—'} · {current.total_amount.toLocaleString()} F (dont livraison {(current.delivery_fee ?? 0).toLocaleString()} F)
+              </Text>
             </View>
           </Card>
 
-          {/* Actions si livré */}
           {isDelivered && (
             <TouchableOpacity
               style={styles.chatBtn}
-              onPress={() => navigation.navigate('Rating', { order: currentOrder })}
+              onPress={() => navigation.navigate('Rating', {
+                order: { id: current.id, vendorName: current.vendors?.store_name, hasLivreur: !!current.livreur_id },
+              })}
             >
               <Icon name="star" size={18} color="#fff" />
               <Text style={styles.chatBtnText}>Noter la commande</Text>
             </TouchableOpacity>
           )}
-
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -206,11 +233,7 @@ function TimelineStep({ icon, label, sub, done, current, isLast }: any) {
   return (
     <View style={styles.stepRow}>
       <View style={styles.stepIndicatorCol}>
-        <View style={[
-          styles.stepIconCircle,
-          done && styles.stepDone,
-          current && styles.stepCurrent
-        ]}>
+        <View style={[styles.stepIconCircle, done && styles.stepDone, current && styles.stepCurrent]}>
           <Icon name={icon} size={14} color={done || current ? '#fff' : COLORS.textSecondary} />
         </View>
         {!isLast && <View style={[styles.stepLine, done && styles.stepLineDone]} />}
@@ -266,4 +289,9 @@ const styles = StyleSheet.create({
   infoVal:        { fontSize: 13, fontWeight: '600', color: COLORS.textPrimary, flex: 1 },
   chatBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, borderRadius: 14, padding: 14, marginHorizontal: 16, marginBottom: 24 },
   chatBtnText:    { color: COLORS.white, fontSize: 14, fontWeight: '700' },
+  cancelBox:      { margin: 16, marginTop: 0, backgroundColor: '#FEE2E2', borderRadius: 16, padding: 16, gap: 6 },
+  cancelTitle:    { fontSize: 14, fontWeight: '700', color: '#991B1B' },
+  cancelText:     { fontSize: 13, color: '#7F1D1D' },
+  callBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, borderRadius: 12, minHeight: 44, marginTop: 4 },
+  callBtnText:    { color: COLORS.white, fontSize: 14, fontWeight: '700' },
 });

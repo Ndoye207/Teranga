@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { DBProfile } from '../types';
-import { authService } from '../services/authService';
+import { authService, authFlags } from '../services/authService';
 import { supabase } from '../services/supabase';
 
 interface AuthState {
@@ -62,6 +62,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ user: null, token: null, isLoading: false });
         return;
       }
+      if (authFlags.recoveryInProgress) return; // fin de la réinitialisation : le profil est chargé ensuite
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         setTimeout(() => {
           get().fetchProfile(true);

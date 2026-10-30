@@ -47,7 +47,9 @@ export default function RootNavigator() {
           <Stack.Screen name="Client" component={ClientNavigator} />
           <Stack.Screen name="Vendor" component={VendorNavigator} />
           <Stack.Screen name="Livreur" component={LivreurNavigator} />
-          <Stack.Screen name="Admin" component={AdminNavigator} />
+          {user.role === 'admin' && (
+            <Stack.Screen name="Admin" component={AdminNavigator} />
+          )}
         </>
       )}
     </Stack.Navigator>

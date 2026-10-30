@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar, Switch, ActivityIndicator, Alert } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../constants/colors';
 import { useAuthStore } from '../../store/useAuthStore';
 import { api } from '../../services/api';
-import { supabase } from '../../services/supabase';
 import { useOrderSubscription } from '../../hooks/useOrderSubscription';
+import { useCourierProfile } from '../../hooks/useCourierProfile';
 import { Database } from '../../types/supabase';
 import Icon from '../../components/Icon';
 
@@ -20,39 +19,11 @@ export default function AvailabilityScreen({ navigation }: any) {
   const [isOnline, setIsOnline] = useState(true);
   const [loading, setLoading] = useState(false);
   const [courses, setCourses] = useState<DBOrder[]>([]);
-  const [hasProfile, setHasProfile] = useState<boolean | null>(null);
+  const { hasProfile, refresh: refreshProfile } = useCourierProfile();
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const checkProfile = async () => {
-      if (!user) return;
-      try {
-        const stored = await AsyncStorage.getItem(`courier_profile_${user.id}`);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed && parsed.isConfigured) {
-            setHasProfile(true);
-            return;
-          }
-        }
-
-        const { data } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single();
-        
-        if (data && (data.role === 'livreur' || data.role === 'delivery')) {
-          setHasProfile(true);
-        } else {
-          setHasProfile(false);
-        }
-      } catch (err) {
-        console.error('Error checking profile:', err);
-        setHasProfile(false);
-      }
-    };
-    checkProfile();
-  }, [user]);
+  // Au retour de l'écran de configuration du profil
+  useEffect(() => navigation.addListener('focus', refreshProfile), [navigation, refreshProfile]);
 
   useEffect(() => {
     if (hasProfile) {
@@ -78,12 +49,34 @@ export default function AvailabilityScreen({ navigation }: any) {
     setLoading(true);
     try {
       const data = await api.getAvailableCourses();
-      setCourses(data);
+      setCourses(data as DBOrder[]);
     } catch (error) {
       console.error('Erreur chargement courses:', error);
+      Alert.alert('Erreur', 'Impossible de charger les courses. Vérifiez votre connexion.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const acceptCourse = (item: DBOrder) => {
+    Alert.alert('Accepter cette course ?', `${item.vendors?.store_name || 'Boutique'} → ${item.shipping_address || 'client'}`, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Accepter',
+        onPress: async () => {
+          setBusyId(item.id);
+          try {
+            const updated = await api.acceptCourse(item.id);
+            navigation.navigate('CourseDetail', { course: { ...item, ...updated } });
+          } catch (err: any) {
+            Alert.alert('Course indisponible', err?.message || 'Impossible de prendre cette course');
+          } finally {
+            setBusyId(null);
+            loadAvailableCourses();
+          }
+        },
+      },
+    ]);
   };
 
   if (hasProfile === null) {
@@ -162,12 +155,13 @@ export default function AvailabilityScreen({ navigation }: any) {
                 keyExtractor={i => i.id}
                 renderItem={({ item }) => (
                   <TouchableOpacity
-                    style={styles.courseCard}
-                    onPress={() => navigation.navigate('CourseDetail', { course: item })}
+                    style={[styles.courseCard, busyId === item.id && { opacity: 0.6 }]}
+                    disabled={busyId !== null}
+                    onPress={() => acceptCourse(item)}
                   >
                     <View style={styles.courseHeader}>
                       <Text style={styles.shopName}>{item.vendors?.store_name || 'Boutique'}</Text>
-                      <Text style={styles.amount}>{item.total_amount} F</Text>
+                      <Text style={styles.amount}>Gain : +{item.delivery_fee ?? 0} F</Text>
                     </View>
                     <View style={styles.row}>
                       <Icon name="location-outline" size={14} color={COLORS.textSecondary} />

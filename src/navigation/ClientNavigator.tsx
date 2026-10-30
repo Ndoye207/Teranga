@@ -2,7 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { COLORS } from '../constants/colors';
-import { ClientStackParamList, ClientTabParamList } from '../types/navigation';
+import { ClientStackParamList, ClientTabParamList, ClientRootParamList } from '../types/navigation';
 import HomeScreen     from '../screens/client/HomeScreen';
 import VendorScreen   from '../screens/client/VendorScreen';
 import CartScreen     from '../screens/client/CartScreen';
@@ -12,6 +12,7 @@ import Icon           from '../components/Icon';
 
 const Tab   = createBottomTabNavigator<ClientTabParamList>();
 const Stack = createStackNavigator<ClientStackParamList>();
+const Root  = createStackNavigator<ClientRootParamList>();
 
 const TabIcon = ({ name }: { name: string }) => ({ color, size }: { color: string, size: number }) => (
   <Icon name={name} color={color} size={size} />
@@ -22,12 +23,11 @@ function HomeStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Home"   component={HomeScreen} />
       <Stack.Screen name="Vendor" component={VendorScreen} />
-      <Stack.Screen name="Rating" component={RatingScreen} />
     </Stack.Navigator>
   );
 }
 
-export default function ClientNavigator() {
+function ClientTabs() {
   return (
     <Tab.Navigator
       screenOptions={{
@@ -68,5 +68,16 @@ export default function ClientNavigator() {
         }}
       />
     </Tab.Navigator>
+  );
+}
+
+// Rating est ici (et plus dans HomeStack) : le bouton « Noter la commande » est dans l'onglet
+// Commandes, il doit pouvoir ouvrir l'écran quel que soit l'onglet actif.
+export default function ClientNavigator() {
+  return (
+    <Root.Navigator screenOptions={{ headerShown: false }}>
+      <Root.Screen name="ClientTabs" component={ClientTabs} />
+      <Root.Screen name="Rating" component={RatingScreen} />
+    </Root.Navigator>
   );
 }

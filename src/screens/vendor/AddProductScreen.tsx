@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image, ScrollView } from 'react-native';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { pickPhoto } from '../../utils/pickImage';
 import { api } from '../../services/api';
 import { vendorService } from '../../services/vendorService';
+import { normalizeCategory } from '../../utils/category';
+import { CATEGORIES } from '../../constants/categories';
 import { COLORS } from '../../constants/colors';
 
-const CATEGORIES = ['Repas', 'Légumes', 'Service'];
 
 export default function AddProductScreen({ route, navigation }: any) {
   const { vendorId, product } = route?.params || {};
   const [name, setName] = useState(product?.name || '');
   const [price, setPrice] = useState(product?.price.toString() || '');
   const [description, setDescription] = useState(product?.description || '');
-  const [category, setCategory] = useState(product?.category ? product.category.charAt(0).toUpperCase() + product.category.slice(1) : CATEGORIES[0]);
+  // Vide = stock illimité (non suivi). Un nombre = quantité disponible.
+  const [stock, setStock] = useState(product?.stock != null ? String(product.stock) : '');
+  // On stocke l'identifiant officiel de la catégorie (ex. 'plats', 'legumes', 'patisserie')
+  const [category, setCategory] = useState<string>(normalizeCategory(product?.category) ?? CATEGORIES[0].id);
   const [image, setImage] = useState<string | null>(product?.image_url || null);
   const [loading, setLoading] = useState(false);
 
@@ -26,20 +30,28 @@ export default function AddProductScreen({ route, navigation }: any) {
   }, [vendorId, product, navigation]);
 
   const pickImage = async () => {
-    const result = await launchImageLibrary({
-      mediaType: 'photo',
-      quality: 0.5,
-    });
-
-    if (!result.didCancel && result.assets && result.assets.length > 0) {
-      setImage(result.assets[0].uri || null);
-    }
+    const uri = await pickPhoto({ quality: 0.5, maxWidth: 1280, maxHeight: 1280 });
+    if (uri) setImage(uri);
   };
 
   const handleSaveProduct = async () => {
-    if (!name || !price) {
+    const parsedPrice = parseFloat(price.replace(',', '.'));
+    if (!name.trim() || !price) {
       Alert.alert('Erreur', 'Veuillez remplir le nom et le prix.');
       return;
+    }
+    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+      Alert.alert('Prix invalide', 'Entrez un prix supérieur à 0 (ex : 1500).');
+      return;
+    }
+
+    let stockValue: number | null = null;
+    if (stock.trim() !== '') {
+      stockValue = Number(stock.replace(',', '.'));
+      if (!Number.isInteger(stockValue) || stockValue < 0) {
+        Alert.alert('Stock invalide', 'Entrez un nombre entier (0 ou plus), ou laissez vide pour un stock illimité.');
+        return;
+      }
     }
 
     setLoading(true);
@@ -51,10 +63,11 @@ export default function AddProductScreen({ route, navigation }: any) {
 
       const productData = {
         vendor_id: vendorId || product.vendor_id,
-        name: name,
-        price: parseFloat(price),
+        name: name.trim(),
+        price: Math.round(parsedPrice),
         description: description,
-        category: category.toLowerCase(),
+        category,
+        stock: stockValue,
         image_url: imageUrl,
       };
 
@@ -101,6 +114,14 @@ export default function AddProductScreen({ route, navigation }: any) {
           onChangeText={setPrice}
           keyboardType="numeric"
         />
+
+        <TextInput
+          style={styles.input}
+          placeholder="Stock disponible (vide = illimité)"
+          value={stock}
+          onChangeText={setStock}
+          keyboardType="number-pad"
+        />
         
         <TextInput
           style={[styles.input, styles.textArea]}
@@ -114,11 +135,11 @@ export default function AddProductScreen({ route, navigation }: any) {
         <View style={styles.categoryContainer}>
           {CATEGORIES.map(cat => (
             <TouchableOpacity
-              key={cat}
-              style={[styles.categoryBtn, category === cat && styles.categoryBtnActive]}
-              onPress={() => setCategory(cat)}
+              key={cat.id}
+              style={[styles.categoryBtn, category === cat.id && styles.categoryBtnActive]}
+              onPress={() => setCategory(cat.id)}
             >
-              <Text style={[styles.categoryText, category === cat && styles.categoryTextActive]}>{cat}</Text>
+              <Text style={[styles.categoryText, category === cat.id && styles.categoryTextActive]}>{cat.emoji} {cat.fullLabel}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -145,7 +166,7 @@ const styles = StyleSheet.create({
   input: { backgroundColor: '#FFF', padding: 15, borderRadius: 8, marginBottom: 15, borderWidth: 1, borderColor: COLORS.border },
   textArea: { height: 100, textAlignVertical: 'top' },
   label: { fontSize: 16, fontWeight: '600', marginBottom: 10 },
-  categoryContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  categoryContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   categoryBtn: { padding: 10, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#FFF' },
   categoryBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   categoryText: { color: COLORS.textSecondary },

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image, ScrollView } from 'react-native';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { pickPhoto } from '../../utils/pickImage';
 import { useAuthStore } from '../../store/useAuthStore';
 import { api } from '../../services/api';
 import { COLORS } from '../../constants/colors';
@@ -15,14 +15,8 @@ export default function CreateShopScreen({ navigation }: any) {
   const [loading, setLoading] = useState(false);
 
   const pickImage = async () => {
-    const result = await launchImageLibrary({
-      mediaType: 'photo',
-      quality: 0.5,
-    });
-
-    if (!result.didCancel && result.assets && result.assets.length > 0) {
-      setLogo(result.assets[0].uri || null);
-    }
+    const uri = await pickPhoto({ quality: 0.5, maxWidth: 1280, maxHeight: 1280 });
+    if (uri) setLogo(uri);
   };
 
   const handleCreateShop = async () => {

@@ -25,4 +25,4 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     }),
   addOrder: (order) =>
     set({ orders: [...get().orders, order], currentOrder: order }),
-}));
+}));

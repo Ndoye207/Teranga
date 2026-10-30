@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput,
-  StyleSheet, StatusBar, ScrollView,
+  StyleSheet, StatusBar, ScrollView, Alert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../../components/Icon';
 import { COLORS } from '../../constants/colors';
+import { api } from '../../services/api';
 
 function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   return (
@@ -30,10 +31,27 @@ export default function RatingScreen({ route, navigation }: any) {
   const [livreurRating,  setLivreurRating]  = useState(5);
   const [livreurComment, setLivreurComment] = useState('');
   const [submitted,      setSubmitted]      = useState(false);
+  const [sending,        setSending]        = useState(false);
+  const hasLivreur = !!order?.hasLivreur;
 
-  const handleSubmit = () => {
-    setSubmitted(true);
-    setTimeout(() => navigation.navigate('Accueil'), 2000);
+  const handleSubmit = async () => {
+    if (sending || !order?.id) return;
+    setSending(true);
+    try {
+      await api.rateOrder({
+        orderId: order.id,
+        vendorRating,
+        vendorComment,
+        livreurRating,
+        livreurComment,
+      });
+      setSubmitted(true);
+      setTimeout(() => navigation.goBack(), 2000);
+    } catch (err: any) {
+      Alert.alert('Erreur', err?.message || "Impossible d'envoyer votre avis.");
+    } finally {
+      setSending(false);
+    }
   };
 
   if (submitted) {
@@ -83,7 +101,7 @@ export default function RatingScreen({ route, navigation }: any) {
               </View>
               <View style={styles.cardHeaderInfo}>
                 <Text style={styles.cardTitle}>Vendeur</Text>
-                <Text style={styles.cardSub}>{order?.vendorName ?? 'Épicerie Ndeye Fatou'}</Text>
+                <Text style={styles.cardSub}>{order?.vendorName ?? 'Vendeur'}</Text>
               </View>
             </View>
             <Text style={styles.rateQuestion}>Qualité des produits et service</Text>
@@ -106,7 +124,8 @@ export default function RatingScreen({ route, navigation }: any) {
             />
           </View>
 
-          {/* Livreur */}
+          {/* Livreur (seulement s'il y en a eu un) */}
+          {hasLivreur && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={[styles.avatar, styles.avatarLivreur]}>
@@ -136,10 +155,11 @@ export default function RatingScreen({ route, navigation }: any) {
               multiline
             />
           </View>
+          )}
 
           {/* Bouton Soumettre */}
-          <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
-            <Icon name="checkmark" size={18} color="#fff" />
+          <TouchableOpacity style={[styles.submitBtn, sending && { opacity: 0.6 }]} onPress={handleSubmit} disabled={sending}>
+            {sending ? <ActivityIndicator color="#fff" /> : <Icon name="checkmark" size={18} color="#fff" />}
             <Text style={styles.submitBtnText}>Envoyer mon avis</Text>
           </TouchableOpacity>
 

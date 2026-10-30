@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView,
-  StyleSheet, StatusBar, Alert,
+  StyleSheet, StatusBar, Alert, Linking, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/colors';
@@ -14,49 +14,67 @@ const DELIVERY_STEPS = [
   { id: 'delivered',   label: 'Livraison effectuée',                  icon: '✅' },
 ];
 
+// Texte du bouton selon l'étape en cours (ce que le livreur va faire)
+const ACTION_LABELS = [
+  "J'ai récupéré la commande",
+  'Je suis en route vers le client',
+  'Confirmer la livraison',
+];
+
 export default function CourseDetailScreen({ route, navigation }: any) {
   const course = route.params?.course;
-  const [currentStep, setCurrentStep] = useState(
-    course?.status === 'delivering' ? 2 :
-    course?.status === 'picked_up' ? 1 :
-    course?.status === 'delivered' ? 3 : 0
-  );
+  const [currentStep, setCurrentStep] = useState(() => {
+    if (course?.status === 'delivered') return 3;
+    if (course?.status === 'delivering') return 2;
+    if (course?.status === 'picked_up') return 1;
+    return 0;
+  });
   const [done, setDone] = useState(course?.status === 'delivered');
 
-  const advance = async () => {
-    const nextStep = currentStep + 1;
-    let newStatus = course?.status;
-    if (nextStep === 1) newStatus = 'picked_up';
-    else if (nextStep === 2) newStatus = 'delivering';
-    else if (nextStep === 3) newStatus = 'delivered';
+  const [busy, setBusy] = useState(false);
+  const [items, setItems] = useState<{ id: string; product_name: string; quantity: number; unit_price: number }[]>([]);
 
-    if (nextStep < DELIVERY_STEPS.length) {
+  useEffect(() => {
+    if (!course?.id) return;
+    api.getOrderItems(course.id).then(setItems).catch(() => {});
+  }, [course?.id]);
+
+  const callVendor = () => {
+    const phone = course?.vendors?.phone;
+    if (!phone) {
+      Alert.alert('Numéro indisponible', "Le vendeur n'a pas renseigné de téléphone.");
+      return;
+    }
+    Linking.openURL(`tel:${phone}`);
+  };
+
+  // Étape 0 -> 1 : récupéré chez le vendeur (picked_up)
+  // Étape 1 -> 2 : en route vers le client (delivering)
+  // Étape 2 -> 3 : livré (delivered), après confirmation
+  const changeStatus = async (status: 'picked_up' | 'delivering' | 'delivered', nextStep: number) => {
+    setBusy(true);
+    try {
+      // L'écran n'avance que si le serveur a accepté le changement
+      await api.setCourierOrderStatus(course.id, status);
       setCurrentStep(nextStep);
-      try {
-        await api.updateOrderStatus(course.id, newStatus);
-      } catch (err) {
-        console.error('Erreur mise à jour statut course:', err);
-      }
-    } else {
-      Alert.alert(
-        'Confirmer la livraison',
-        'La commande a bien été livrée ?',
-        [
-          { text: 'Annuler', style: 'cancel' },
-          {
-            text: 'Confirmer',
-            onPress: async () => {
-              try {
-                await api.updateOrderStatus(course.id, 'delivered');
-                setDone(true);
-              } catch (err) {
-                console.error('Erreur confirmation livraison:', err);
-                Alert.alert('Erreur', 'Impossible de confirmer la livraison');
-              }
-            },
-          },
-        ]
-      );
+      if (status === 'delivered') setDone(true);
+    } catch (err: any) {
+      console.error('Erreur mise à jour statut course:', err);
+      Alert.alert('Erreur', err?.message || 'Impossible de mettre à jour la course.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const advance = () => {
+    if (busy || !course?.id) return;
+    if (currentStep === 0) changeStatus('picked_up', 1);
+    else if (currentStep === 1) changeStatus('delivering', 2);
+    else if (currentStep === 2) {
+      Alert.alert('Confirmer la livraison', 'La commande a bien été livrée ?', [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Confirmer', onPress: () => changeStatus('delivered', 3) },
+      ]);
     }
   };
 
@@ -68,7 +86,7 @@ export default function CourseDetailScreen({ route, navigation }: any) {
           <View style={styles.successBox}>
             <Text style={styles.successEmoji}>🎉</Text>
             <Text style={styles.successTitle}>Livraison confirmée !</Text>
-            <Text style={styles.successSub}>+{course?.total_amount ? Math.round(course.total_amount * 0.1) : 500} F ajoutés à vos revenus</Text>
+            <Text style={styles.successSub}>+{course?.delivery_fee ?? 0} F ajoutés à vos revenus</Text>
             <TouchableOpacity
               style={styles.backBtn}
               onPress={() => navigation.goBack()}
@@ -101,11 +119,15 @@ export default function CourseDetailScreen({ route, navigation }: any) {
       <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
         <ScrollView showsVerticalScrollIndicator={false}>
 
-          {/* Carte */}
+          {/* Articles à récupérer */}
           <View style={styles.mapBox}>
-            <Text style={styles.mapEmoji}>🗺️</Text>
-            <Text style={styles.mapText}>Itinéraire · Vendeur → Client</Text>
-            <Text style={styles.mapDist}>3.2 km</Text>
+            <Text style={styles.mapEmoji}>📦</Text>
+            <Text style={styles.mapText}>
+              {items.length > 0
+                ? items.map(i => `${i.quantity} × ${i.product_name}`).join('\n')
+                : 'Commande'}
+            </Text>
+            <Text style={styles.mapDist}>Gain : +{course?.delivery_fee ?? 0} F</Text>
           </View>
 
           {/* Infos course */}
@@ -157,21 +179,20 @@ export default function CourseDetailScreen({ route, navigation }: any) {
           </View>
 
           {/* Bouton avancer */}
-          <TouchableOpacity style={styles.advanceBtn} onPress={advance}>
-            <Text style={styles.advanceBtnText}>
-              {currentStep < DELIVERY_STEPS.length - 1
-                ? DELIVERY_STEPS[currentStep].label
-                : 'Confirmer la livraison'}
-            </Text>
+          <TouchableOpacity style={[styles.advanceBtn, busy && { opacity: 0.6 }]} onPress={advance} disabled={busy}>
+            {busy ? (
+              <ActivityIndicator color={COLORS.white} />
+            ) : (
+              <Text style={styles.advanceBtnText}>
+                {ACTION_LABELS[Math.min(currentStep, ACTION_LABELS.length - 1)]}
+              </Text>
+            )}
           </TouchableOpacity>
 
           {/* Contact */}
           <View style={styles.contactRow}>
-            <TouchableOpacity style={styles.contactBtn}>
-              <Text style={styles.contactBtnText}>📞 Appeler le vendeur</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.contactBtn, { backgroundColor: COLORS.primary }]}>
-              <Text style={[styles.contactBtnText, { color: COLORS.white }]}>💬 Chat client</Text>
+            <TouchableOpacity style={[styles.contactBtn, { backgroundColor: COLORS.primary }]} onPress={callVendor}>
+              <Text style={[styles.contactBtnText, { color: COLORS.white }]}>📞 Appeler le vendeur</Text>
             </TouchableOpacity>
           </View>
 

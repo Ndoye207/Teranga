@@ -1,6 +1,9 @@
 import { supabase } from './supabase';
 import { DBProfile } from '../types';
 
+/** true pendant la réinitialisation par code : on n'ouvre pas l'app avant la fin. */
+export const authFlags = { recoveryInProgress: false };
+
 export const authService = {
   /**
    * Inscription d'un nouvel utilisateur (Buyer / Vendor)
@@ -49,18 +52,25 @@ export const authService = {
    * Vérifie le code reçu (ouvre une session), puis définit le nouveau mot de passe.
    */
   async resetPasswordWithCode(email: string, code: string, newPassword: string) {
-    const { error: otpError } = await supabase.auth.verifyOtp({
-      email: email.trim().toLowerCase(),
-      token: code.trim(),
-      type: 'recovery',
-    });
-    if (otpError) throw otpError;
+    authFlags.recoveryInProgress = true;
+    try {
+      const { error: otpError } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token: code.trim(),
+        type: 'recovery',
+      });
+      if (otpError) throw otpError;
 
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) {
-      throw new Error(
-        `Code validé, mais le mot de passe n'a pas pu être modifié : ${getAuthErrorMessage(error)}`,
-      );
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        // On referme la session de récupération : le mot de passe n'a pas changé
+        await supabase.auth.signOut();
+        throw new Error(
+          `Code validé, mais le mot de passe n'a pas pu être modifié : ${getAuthErrorMessage(error)}`,
+        );
+      }
+    } finally {
+      authFlags.recoveryInProgress = false;
     }
   },
 

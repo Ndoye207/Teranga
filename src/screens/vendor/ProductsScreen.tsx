@@ -1,22 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList,
-  StyleSheet, StatusBar, Alert,
+  StyleSheet, StatusBar, Alert, ScrollView,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/colors';
 import { Product } from '../../types';
 import { vendorService } from '../../services/vendorService';
-import { supabase } from '../../services/supabase';
+import { api } from '../../services/api';
+import { normalizeCategory, categoryOf } from '../../utils/category';
+import { CATEGORIES } from '../../constants/categories';
 
-const TABS = ['Légumes', 'Plats', 'Traiteur'];
-const CAT_MAP: Record<string, string> = {
-  'Légumes': 'légumes', 'Plats': 'repas', 'Traiteur': 'service',
-};
+// « Tous » + toutes les catégories officielles (libellés complets)
+const TABS = [{ id: 'all', label: 'Tous' }, ...CATEGORIES.map(c => ({ id: c.id as string, label: c.fullLabel }))];
+
 export default function ProductsScreen() {
   const navigation = useNavigation<any>();
-  const [activeTab, setActiveTab]   = useState('Légumes');
+  const [activeTab, setActiveTab]   = useState('all');
   const [products, setProducts]     = useState<Product[]>([]);
 
   useFocusEffect(
@@ -25,42 +26,29 @@ export default function ProductsScreen() {
     }, [])
   );
 
+  const [vendorId, setVendorId] = useState<string | null>(null);
+
   const fetchProducts = async () => {
-    // 1. Get current user's vendor record
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: vendorData } = await supabase
-      .from('vendors')
-      .select('id')
-      .eq('profile_id', user.id)
-      .single();
-
-    if (!vendorData) {
-      Alert.alert('Erreur', 'Boutique introuvable');
-      return;
-    }
-
-    // 2. Fetch products for this vendor
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('vendor_id', vendorData.id);
-
-    if (error) {
+    try {
+      const vendor = await api.getMyVendor();
+      if (!vendor) {
+        Alert.alert('Boutique introuvable', "Créez d'abord votre boutique depuis l'accueil.");
+        return;
+      }
+      setVendorId(vendor.id);
+      setProducts(await api.getAllProducts(vendor.id));
+    } catch (error) {
       Alert.alert('Erreur', 'Impossible de charger les produits');
-    } else {
-      setProducts(data || []);
     }
   };
 
-  const filtered = products.filter(
-    p => p.category === CAT_MAP[activeTab]
-  );
+  const filtered = activeTab === 'all'
+    ? products
+    : products.filter(p => normalizeCategory(p.category) === activeTab);
 
   const toggleAvailable = async (product: Product) => {
     try {
-      await vendorService.updateProduct(product.id, { is_active: !product.is_active });
+      await vendorService.updateProduct(product.id, { is_active: product.is_active === false });
       await fetchProducts();
     } catch (error: any) {
       Alert.alert('Erreur', error.message || 'Impossible de mettre à jour le produit');
@@ -90,26 +78,36 @@ export default function ProductsScreen() {
       <View style={styles.productLeft}>
         <View style={styles.productIcon}>
           <Text style={styles.productIconText}>
-            {item.category === 'plats' ? '🍛' : item.category === 'traiteur' ? '🎉' : '🥬'}
+            {categoryOf(item.category).emoji}
           </Text>
         </View>
         <View style={styles.productInfo}>
           <Text style={styles.productName}>{item.name}</Text>
+          <Text style={styles.productCat}>{categoryOf(item.category).fullLabel}</Text>
           <Text style={styles.productPrice}>
             {item.price.toLocaleString()} F
+          </Text>
+          <Text style={[
+            styles.productStock,
+            item.stock != null && item.stock <= 0 && { color: COLORS.danger, fontWeight: '700' },
+            item.stock != null && item.stock > 0 && item.stock <= 5 && { color: COLORS.warning, fontWeight: '700' },
+          ]}>
+            {item.stock == null ? 'Stock illimité'
+              : item.stock <= 0 ? 'Rupture de stock'
+              : `Stock : ${item.stock}`}
           </Text>
           <TouchableOpacity
             style={[
               styles.availBadge,
-              item.is_active ? styles.availBadgeAvailable : styles.availBadgeUnavailable
+              item.is_active !== false ? styles.availBadgeAvailable : styles.availBadgeUnavailable
             ]}
             onPress={() => toggleAvailable(item)}
           >
             <Text style={[
               styles.availText,
-              item.is_active ? styles.availTextAvailable : styles.availTextUnavailable
+              item.is_active !== false ? styles.availTextAvailable : styles.availTextUnavailable
             ]}>
-              {item.is_active ? '● Disponible' : '● Indisponible'}
+              {item.is_active !== false ? '● Disponible' : '● Indisponible'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -142,19 +140,19 @@ export default function ProductsScreen() {
 
       <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
         {/* Tabs */}
-        <View style={styles.tabs}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabsContent}>
           {TABS.map(tab => (
             <TouchableOpacity
-              key={tab}
-              style={[styles.tab, activeTab === tab && styles.tabActive]}
-              onPress={() => setActiveTab(tab)}
+              key={tab.id}
+              style={[styles.tab, activeTab === tab.id && styles.tabActive]}
+              onPress={() => setActiveTab(tab.id)}
             >
-              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                {tab}
+              <Text style={[styles.tabText, activeTab === tab.id && styles.tabTextActive]}>
+                {tab.label} ({tab.id === 'all' ? products.length : products.filter(p => normalizeCategory(p.category) === tab.id).length})
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
 
         <FlatList
           data={filtered}
@@ -170,25 +168,12 @@ export default function ProductsScreen() {
           ListFooterComponent={
             <TouchableOpacity 
               style={styles.addBtn} 
-              onPress={async () => {
-                if (products.length > 0) {
-                  navigation.navigate('AddProduct', { vendorId: products[0].vendor_id });
-                } else {
-                  // Fetch vendor ID if list is empty
-                  const { data: { user } } = await supabase.auth.getUser();
-                  if (user) {
-                    const { data: vendorData } = await supabase
-                      .from('vendors')
-                      .select('id')
-                      .eq('profile_id', user.id)
-                      .single();
-                    if (vendorData) {
-                      navigation.navigate('AddProduct', { vendorId: vendorData.id });
-                    } else {
-                      Alert.alert('Erreur', 'Boutique introuvable');
-                    }
-                  }
+              onPress={() => {
+                if (!vendorId) {
+                  Alert.alert('Boutique introuvable', "Créez d'abord votre boutique.");
+                  return;
                 }
+                navigation.navigate('AddProduct', { vendorId });
               }}
             >
               <Text style={styles.addBtnText}>+ Ajouter un produit</Text>
@@ -206,8 +191,9 @@ const styles = StyleSheet.create({
   header:         { backgroundColor: COLORS.primary, paddingBottom: 16, paddingHorizontal: 16 },
   headerTitle:    { fontSize: 18, fontWeight: '600', color: COLORS.white },
   headerSub:      { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
-  tabs:           { flexDirection: 'row', backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  tab:            { flex: 1, paddingVertical: 12, alignItems: 'center' },
+  tabsScroll:     { flexGrow: 0, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  tabsContent:    { paddingHorizontal: 8 },
+  tab:            { paddingVertical: 12, paddingHorizontal: 14, alignItems: 'center' },
   tabActive:      { borderBottomWidth: 2, borderBottomColor: COLORS.primary },
   tabText:        { fontSize: 13, fontWeight: '500', color: COLORS.textSecondary },
   tabTextActive:  { color: COLORS.primary },
@@ -216,6 +202,8 @@ const styles = StyleSheet.create({
   productIcon:    { width: 44, height: 44, borderRadius: 10, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center' },
   productInfo:    { flex: 1, gap: 4 },
   productName:    { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary },
+  productCat:     { fontSize: 11, fontWeight: '600', color: COLORS.primary },
+  productStock:   { fontSize: 12, color: COLORS.textSecondary },
   productPrice:   { fontSize: 13, color: COLORS.accent, fontWeight: '500' },
   availBadge:     { alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   availText:      { fontSize: 11, fontWeight: '600' },

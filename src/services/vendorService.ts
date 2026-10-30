@@ -18,12 +18,5 @@ export const vendorService = {
   async deleteProduct(id: string) {
     const { error } = await supabase.from('products').delete().eq('id', id);
     if (error) throw error;
-  },
-
-  // Order Management
-  async updateOrderStatus(id: string, status: string) {
-    const { data, error } = await supabase.from('orders').update({ status }).eq('id', id).select().single();
-    if (error) throw error;
-    return data;
-  },
+  }
 };

@@ -12,11 +12,83 @@ export type Database = {
   }
   public: {
     Tables: {
+      order_items: {
+        Row: {
+          id: string
+          order_id: string
+          product_id: string | null
+          product_name: string
+          unit_price: number
+          quantity: number
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          product_id?: string | null
+          product_name: string
+          unit_price: number
+          quantity: number
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          product_id?: string | null
+          product_name?: string
+          unit_price?: number
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courier_profiles: {
+        Row: {
+          user_id: string
+          vehicle_type: string
+          phone: string
+          plate: string | null
+          photo_url: string | null
+          id_card_path: string | null
+          license_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          vehicle_type?: string
+          phone: string
+          plate?: string | null
+          photo_url?: string | null
+          id_card_path?: string | null
+          license_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          vehicle_type?: string
+          phone?: string
+          plate?: string | null
+          photo_url?: string | null
+          id_card_path?: string | null
+          license_path?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           buyer_id: string
+          cancel_reason: string | null
           created_at: string
+          delivery_fee: number
           id: string
+          livreur_id: string | null
+          payment_method: string | null
           shipping_address: string
           status: string | null
           total_amount: number
@@ -25,8 +97,12 @@ export type Database = {
         }
         Insert: {
           buyer_id: string
+          cancel_reason?: string | null
           created_at?: string
+          delivery_fee?: number
           id?: string
+          livreur_id?: string | null
+          payment_method?: string | null
           shipping_address: string
           status?: string | null
           total_amount: number
@@ -35,8 +111,12 @@ export type Database = {
         }
         Update: {
           buyer_id?: string
+          cancel_reason?: string | null
           created_at?: string
+          delivery_fee?: number
           id?: string
+          livreur_id?: string | null
+          payment_method?: string | null
           shipping_address?: string
           status?: string | null
           total_amount?: number
@@ -149,6 +229,8 @@ export type Database = {
           comment: string | null
           created_at: string
           id: string
+          livreur_id: string | null
+          order_id: string | null
           product_id: string | null
           rating: number
           vendor_id: string | null
@@ -158,6 +240,8 @@ export type Database = {
           comment?: string | null
           created_at?: string
           id?: string
+          livreur_id?: string | null
+          order_id?: string | null
           product_id?: string | null
           rating: number
           vendor_id?: string | null
@@ -167,6 +251,8 @@ export type Database = {
           comment?: string | null
           created_at?: string
           id?: string
+          livreur_id?: string | null
+          order_id?: string | null
           product_id?: string | null
           rating?: number
           vendor_id?: string | null
@@ -256,7 +342,53 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_order: {
+        Args: { p_vendor_id: string; p_items: Json; p_address: string; p_payment: string }
+        Returns: Database["public"]["Tables"]["orders"]["Row"]
+      }
+      accept_course: {
+        Args: { p_order_id: string }
+        Returns: Database["public"]["Tables"]["orders"]["Row"]
+      }
+      set_vendor_order_status: {
+        Args: { p_order_id: string; p_status: string; p_reason?: string | null }
+        Returns: Database["public"]["Tables"]["orders"]["Row"]
+      }
+      set_courier_order_status: {
+        Args: { p_order_id: string; p_status: string }
+        Returns: Database["public"]["Tables"]["orders"]["Row"]
+      }
+      become_courier_verified: {
+        Args: {
+          p_vehicle: string
+          p_phone: string
+          p_plate: string
+          p_photo_url: string
+          p_id_card_path: string
+          p_license_path: string
+        }
+        Returns: undefined
+      }
+      rate_order: {
+        Args: {
+          p_order_id: string
+          p_vendor_rating: number
+          p_vendor_comment: string
+          p_livreur_rating: number
+          p_livreur_comment: string
+        }
+        Returns: undefined
+      }
+      get_order_courier: {
+        Args: { p_order_id: string }
+        Returns: {
+          full_name: string | null
+          phone: string | null
+          photo_url: string | null
+          vehicle_type: string | null
+          plate: string | null
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

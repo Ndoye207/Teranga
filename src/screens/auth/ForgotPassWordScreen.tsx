@@ -17,6 +17,7 @@ import AuthInput from '../../components/AuthInput';
 import Icon from '../../components/Icon';
 import { COLORS } from '../../constants/colors';
 import { authService, getAuthErrorMessage } from '../../services/authService';
+import { useAuthStore } from '../../store/useAuthStore';
 
 const emailSchema = z.string().email('Adresse email invalide');
 const resetSchema = z.object({
@@ -98,7 +99,8 @@ export const ForgotPasswordScreen = ({ navigation }: any) => {
         'Mot de passe modifié',
         'Votre mot de passe a été mis à jour. Vous êtes connecté.',
       );
-      // La session ouverte par le code redirige automatiquement vers l'app
+      // La session est ouverte : on charge le profil, ce qui redirige vers l'app
+      await useAuthStore.getState().fetchProfile(true);
     } catch (error: any) {
       Alert.alert('Erreur', getAuthErrorMessage(error));
     } finally {
