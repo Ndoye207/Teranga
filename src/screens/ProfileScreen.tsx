@@ -1,9 +1,21 @@
 import React from 'react';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { useAuthStore } from '../store/useAuthStore';
 import Icon from '../components/Icon';
+
+const MenuItem = ({ icon, label, onPress, destructive }: any) => (
+  <TouchableOpacity 
+    style={[styles.menuItem, destructive && styles.menuItemDestructive]} 
+    onPress={onPress}
+    activeOpacity={0.7}
+  >
+    <Icon name={icon} size={22} color={destructive ? COLORS.danger : COLORS.textPrimary} />
+    <Text style={[styles.menuText, destructive && styles.menuTextDestructive]}>{label}</Text>
+    <Icon name="chevron-forward-outline" size={20} color={COLORS.textSecondary} />
+  </TouchableOpacity>
+);
 
 export default function ProfileScreen({ navigation }: any) {
   const { user, logout } = useAuthStore();
@@ -14,18 +26,6 @@ export default function ProfileScreen({ navigation }: any) {
       { text: 'Déconnexion', style: 'destructive', onPress: logout },
     ]);
   };
-
-  const MenuItem = ({ icon, label, onPress, destructive }: any) => (
-    <TouchableOpacity 
-      style={[styles.menuItem, destructive && styles.menuItemDestructive]} 
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <Icon name={icon} size={22} color={destructive ? COLORS.danger : COLORS.textPrimary} />
-      <Text style={[styles.menuText, destructive && styles.menuTextDestructive]}>{label}</Text>
-      <Icon name="chevron-forward-outline" size={20} color={COLORS.textSecondary} />
-    </TouchableOpacity>
-  );
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: COLORS.bg }]}>

@@ -9,6 +9,11 @@ import { COLORS } from '../constants/colors';
 
 const Tab = createBottomTabNavigator();
 
+const renderHomeIcon = ({ color, size }: { color: string; size: number }) => <Icon name="home" size={size} color={color} />;
+const renderProductsIcon = ({ color, size }: { color: string; size: number }) => <Icon name="restaurant" size={size} color={color} />;
+const renderOrdersIcon = ({ color, size }: { color: string; size: number }) => <Icon name="list" size={size} color={color} />;
+const renderProfileIcon = ({ color, size }: { color: string; size: number }) => <Icon name="person" size={size} color={color} />;
+
 export default function VendorTabNavigator() {
   return (
     <Tab.Navigator
@@ -23,7 +28,7 @@ export default function VendorTabNavigator() {
         component={VendorDashboard} 
         options={{
           tabBarLabel: 'Accueil',
-          tabBarIcon: ({ color, size }) => <Icon name="home" size={size} color={color} />
+          tabBarIcon: renderHomeIcon
         }}
       />
       <Tab.Screen 
@@ -31,7 +36,7 @@ export default function VendorTabNavigator() {
         component={ProductsScreen} 
         options={{
           tabBarLabel: 'Produits',
-          tabBarIcon: ({ color, size }) => <Icon name="restaurant" size={size} color={color} />
+          tabBarIcon: renderProductsIcon
         }}
       />
       <Tab.Screen 
@@ -39,7 +44,7 @@ export default function VendorTabNavigator() {
         component={OrdersScreen} 
         options={{
           tabBarLabel: 'Commandes',
-          tabBarIcon: ({ color, size }) => <Icon name="list" size={size} color={color} />
+          tabBarIcon: renderOrdersIcon
         }}
       />
       <Tab.Screen 
@@ -47,7 +52,7 @@ export default function VendorTabNavigator() {
         component={ProfileScreen} 
         options={{
           tabBarLabel: 'Profil',
-          tabBarIcon: ({ color, size }) => <Icon name="person" size={size} color={color} />
+          tabBarIcon: renderProfileIcon
         }}
       />
     </Tab.Navigator>
