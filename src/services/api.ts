@@ -5,7 +5,7 @@ import { getPickedBase64, releasePicked } from '../utils/pickImage';
 
 type Vendor = Database['public']['Tables']['vendors']['Row'];
 type Product = Database['public']['Tables']['products']['Row'];
-// type Order = Database['public']['Tables']['orders']['Insert'];
+type Order = Database['public']['Tables']['orders']['Insert'];
 type DBOrder = Database['public']['Tables']['orders']['Row'];
 
 // Ce que le client et le vendeur ont le droit de voir sur le livreur de LEUR commande
@@ -140,11 +140,21 @@ export const api = {
   getMyOrders: async (buyerId: string) => {
     const { data, error } = await supabase
       .from('orders')
-      .select('*, vendors(store_name)')
+      .select('*, vendors(store_name), order_items(id, product_name, quantity, unit_price)')
       .eq('buyer_id', buyerId)
       .order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
+  },
+
+  // Identifiants des commandes que ce client a déjà notées
+  getMyRatedOrderIds: async (buyerId: string): Promise<string[]> => {
+    const { data, error } = await supabase
+      .from('ratings')
+      .select('order_id')
+      .eq('buyer_id', buyerId);
+    if (error) throw error;
+    return (data || []).map(r => r.order_id).filter((id): id is string => !!id);
   },
 
   // Profil public du livreur de cette commande : visible par le client, le vendeur, le livreur et l'admin (fonction SQL sécurisée)
@@ -152,6 +162,28 @@ export const api = {
     const { data, error } = await supabase.rpc('get_order_courier', { p_order_id: orderId });
     if (error) throw error;
     return data?.[0] ?? null;
+  },
+
+  // Commandes du vendeur avec le détail des articles commandés
+  getVendorOrdersWithItems: async (vendorId: string) => {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*, order_items(id, product_name, quantity, unit_price)')
+      .eq('vendor_id', vendorId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Une commande du vendeur avec ses articles (pour les mises à jour temps réel)
+  getVendorOrderWithItems: async (orderId: string) => {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*, order_items(id, product_name, quantity, unit_price)')
+      .eq('id', orderId)
+      .single();
+    if (error) throw error;
+    return data;
   },
 
   getVendorOrders: async (vendorId: string): Promise<DBOrder[]> => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar,
@@ -7,9 +7,7 @@ import {
 import Icon from '../../components/Icon';
 import { Card } from '../../components/Card';
 import { COLORS } from '../../constants/colors';
-import { api } from '../../services/api';
-import { useAuthStore } from '../../store/useAuthStore';
-import { useOrderSubscription } from '../../hooks/useOrderSubscription';
+import { useMyOrders } from '../../hooks/useMyOrders';
 import CourierCard from '../../components/CourierCard';
 
 // Étape de la frise selon le statut en base
@@ -39,43 +37,15 @@ const BANNER: Record<string, { title: string; sub: string }> = {
 const PAYMENT_LABEL: Record<string, string> = { cash: 'Cash', wave: 'Wave', orange_money: 'Orange Money' };
 
 export default function TrackingScreen({ navigation }: any) {
-  const { user } = useAuthStore();
-  const [orders, setOrders] = useState<any[]>([]);
-  const [items, setItems] = useState<{ id: string; product_name: string; quantity: number; unit_price: number }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { active, history, loading, refreshing, refresh, dismiss } = useMyOrders(navigation);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!user) { setLoading(false); return; }
-    try {
-      setOrders(await api.getMyOrders(user.id));
-    } catch (err) {
-      console.error('Erreur chargement commandes client:', err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [user]);
+  // Commande affichée : celle choisie, sinon la plus récente encore en cours
+  const current = active.find(o => o.id === selectedId) || active[0] || null;
+  const items: { id: string; product_name: string; quantity: number; unit_price: number }[] =
+    current?.order_items ?? [];
 
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => navigation.addListener('focus', load), [navigation, load]);
-
-  // Temps réel : tout changement sur une de MES commandes recharge la liste
-  useOrderSubscription(
-    (o) => { if (o.buyer_id === user?.id) load(); },
-    (o) => { if (o.buyer_id === user?.id) load(); },
-  );
-
-  // Commande affichée : la plus récente encore en cours, sinon la dernière
-  const current =
-    orders.find(o => o.status !== 'delivered' && o.status !== 'cancelled') || orders[0] || null;
-
-  const currentId: string | undefined = current?.id;
-  useEffect(() => {
-    setItems([]);
-    if (!currentId) return;
-    api.getOrderItems(currentId).then(setItems).catch(() => {});
-  }, [currentId]);
+  const openHistory = () => navigation.navigate('OrderHistory');
 
   if (loading) {
     return (
@@ -91,18 +61,32 @@ export default function TrackingScreen({ navigation }: any) {
         <StatusBar backgroundColor={COLORS.primary} barStyle="light-content" />
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Suivi de commande</Text>
+          <TouchableOpacity style={styles.historyBtn} onPress={openHistory}>
+            <Icon name="time-outline" size={16} color="#fff" />
+            <Text style={styles.historyBtnText}>Historique</Text>
+          </TouchableOpacity>
         </View>
         <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
           <View style={styles.emptyBox}>
             <View style={styles.emptyIconBox}>
               <Icon name="cube-outline" size={48} color={COLORS.border} />
             </View>
-            <Text style={styles.emptyTitle}>Aucune commande</Text>
-            <Text style={styles.emptyText}>Passe une commande pour voir son suivi ici</Text>
+            <Text style={styles.emptyTitle}>Aucune commande en cours</Text>
+            <Text style={styles.emptyText}>
+              {history.length > 0
+                ? 'Vos commandes terminées sont dans votre historique.'
+                : 'Passez une commande pour voir son suivi ici.'}
+            </Text>
             <TouchableOpacity style={styles.shopBtn} onPress={() => navigation.navigate('Accueil')}>
               <Icon name="storefront" size={16} color="#fff" />
               <Text style={styles.shopBtnText}>Commander maintenant</Text>
             </TouchableOpacity>
+            {history.length > 0 && (
+              <TouchableOpacity style={styles.secondaryBtn} onPress={openHistory}>
+                <Icon name="time-outline" size={16} color={COLORS.primary} />
+                <Text style={styles.secondaryBtnText}>Voir l'historique ({history.length})</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </SafeAreaView>
@@ -121,16 +105,42 @@ export default function TrackingScreen({ navigation }: any) {
 
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Suivi de commande</Text>
-        <View style={styles.headerBadge}>
-          <Text style={styles.headerBadgeText}>#{current.id.slice(0, 8)}</Text>
+        <View style={styles.headerRight}>
+          <View style={styles.headerBadge}>
+            <Text style={styles.headerBadgeText}>#{current.id.slice(0, 8)}</Text>
+          </View>
+          <TouchableOpacity style={styles.historyBtn} onPress={openHistory}>
+            <Icon name="time-outline" size={16} color="#fff" />
+          </TouchableOpacity>
         </View>
       </View>
 
       <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
         >
+          {active.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chipsRow}
+              style={styles.chipsScroll}
+            >
+              {active.map(o => (
+                <TouchableOpacity
+                  key={o.id}
+                  style={[styles.chip, o.id === current.id && styles.chipActive]}
+                  onPress={() => setSelectedId(o.id)}
+                >
+                  <Text style={[styles.chipText, o.id === current.id && styles.chipTextActive]}>
+                    {o.vendors?.store_name || 'Boutique'} · #{o.id.slice(0, 4)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
           {/* Statut global */}
           <Card style={styles.statusBanner}>
             <View style={[styles.statusIconBox, { backgroundColor: isCancelled ? '#FEE2E2' : isDelivered ? '#EDFBF3' : '#FEF3C7' }]}>
@@ -152,6 +162,9 @@ export default function TrackingScreen({ navigation }: any) {
             <View style={styles.cancelBox}>
               <Text style={styles.cancelTitle}>Motif : {current.cancel_reason || 'non précisé'}</Text>
               <Text style={styles.cancelText}>Vous n'avez rien à payer. Vous pouvez commander ailleurs.</Text>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => dismiss(current.id)}>
+                <Text style={styles.cancelBtnText}>J'ai compris</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <Card style={styles.timelineCard}>
@@ -223,6 +236,11 @@ export default function TrackingScreen({ navigation }: any) {
               <Text style={styles.chatBtnText}>Noter la commande</Text>
             </TouchableOpacity>
           )}
+          {isDelivered && (
+            <TouchableOpacity style={styles.laterBtn} onPress={() => dismiss(current.id)}>
+              <Text style={styles.laterBtnText}>Plus tard (envoyer dans l'historique)</Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -289,6 +307,21 @@ const styles = StyleSheet.create({
   infoVal:        { fontSize: 13, fontWeight: '600', color: COLORS.textPrimary, flex: 1 },
   chatBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, borderRadius: 14, padding: 14, marginHorizontal: 16, marginBottom: 24 },
   chatBtnText:    { color: COLORS.white, fontSize: 14, fontWeight: '700' },
+  headerRight:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  historyBtn:     { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  historyBtnText: { fontSize: 12, color: COLORS.white, fontWeight: '600' },
+  secondaryBtn:   { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: COLORS.primary, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 11 },
+  secondaryBtnText:{ color: COLORS.primary, fontWeight: '600', fontSize: 14 },
+  chipsScroll:    { flexGrow: 0 },
+  chipsRow:       { paddingHorizontal: 16, paddingTop: 12, gap: 8 },
+  chip:           { backgroundColor: COLORS.white, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12, paddingVertical: 6 },
+  chipActive:     { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  chipText:       { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
+  chipTextActive: { color: COLORS.white },
+  laterBtn:       { alignItems: 'center', paddingVertical: 8, marginHorizontal: 16, marginTop: -12, marginBottom: 24 },
+  laterBtnText:   { fontSize: 13, color: COLORS.textSecondary, fontWeight: '600' },
+  cancelBtn:      { alignSelf: 'flex-start', backgroundColor: '#991B1B', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, marginTop: 4 },
+  cancelBtnText:  { color: '#fff', fontSize: 13, fontWeight: '700' },
   cancelBox:      { margin: 16, marginTop: 0, backgroundColor: '#FEE2E2', borderRadius: 16, padding: 16, gap: 6 },
   cancelTitle:    { fontSize: 14, fontWeight: '700', color: '#991B1B' },
   cancelText:     { fontSize: 13, color: '#7F1D1D' },

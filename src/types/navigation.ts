@@ -19,6 +19,7 @@ export type ClientStackParamList = {
 // Pile racine du client : les onglets + les écrans qui doivent s'ouvrir par-dessus (notation)
 export type ClientRootParamList = {
   ClientTabs: undefined;
+  OrderHistory: undefined;
   Rating: { order: { id: string; vendorName?: string; hasLivreur?: boolean } };
 };
 

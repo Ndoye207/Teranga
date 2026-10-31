@@ -11,7 +11,10 @@ import { useOrderSubscription } from '../../hooks/useOrderSubscription';
 import { Database } from '../../types/supabase';
 import CourierCard from '../../components/CourierCard';
 
-type DBOrder = Database['public']['Tables']['orders']['Row'];
+type OrderItem = Database['public']['Tables']['order_items']['Row'];
+type DBOrder = Database['public']['Tables']['orders']['Row'] & {
+  order_items?: Pick<OrderItem, 'id' | 'product_name' | 'quantity' | 'unit_price'>[];
+};
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   pending:    { label: 'Nouvelle',       color: '#92400E', bg: '#FEF3C7' },
@@ -46,7 +49,7 @@ export default function OrdersScreen() {
       const vendor = await api.getMyVendor();   // vendors.id ≠ profiles.id
       if (!vendor) { setLoading(false); return; }
       setVendorId(vendor.id);
-      setOrders(await api.getVendorOrders(vendor.id));
+      setOrders(await api.getVendorOrdersWithItems(vendor.id));
     } catch (error) {
       console.error('Erreur chargement commandes:', error);
     } finally {
@@ -57,15 +60,21 @@ export default function OrdersScreen() {
   useEffect(() => { load(); }, [load]);
 
   useOrderSubscription(
-    (newOrder) => {
+    async (newOrder) => {
       if (vendorId && newOrder.vendor_id === vendorId) {
-        setOrders(prev => [newOrder, ...prev]);
+        try {
+          // L'événement temps réel ne contient pas les articles : on les recharge
+          const full = await api.getVendorOrderWithItems(newOrder.id);
+          setOrders(prev => [full, ...prev.filter(o => o.id !== full.id)]);
+        } catch {
+          setOrders(prev => [newOrder, ...prev.filter(o => o.id !== newOrder.id)]);
+        }
         Alert.alert('Nouvelle commande', `La commande #${newOrder.id.slice(0, 8)} vient d'arriver.`);
       }
     },
     (updated) => {
       if (vendorId && updated.vendor_id === vendorId) {
-        setOrders(prev => prev.map(o => (o.id === updated.id ? updated : o)));
+        setOrders(prev => prev.map(o => (o.id === updated.id ? { ...o, ...updated } : o)));
       }
     },
   );
@@ -78,7 +87,7 @@ export default function OrdersScreen() {
     setBusyId(id);
     try {
       const updated = await api.setVendorOrderStatus(id, status, reason);
-      setOrders(prev => prev.map(o => (o.id === id ? updated : o)));
+      setOrders(prev => prev.map(o => (o.id === id ? { ...o, ...updated } : o)));
     } catch (err: any) {
       Alert.alert('Erreur', err?.message || 'Action impossible pour le moment');
     } finally {
@@ -115,7 +124,19 @@ export default function OrdersScreen() {
           </View>
         </View>
 
-        <Text style={styles.orderAmount}>{item.total_amount.toLocaleString()} F</Text>
+        {item.order_items && item.order_items.length > 0 && (
+          <View style={styles.itemsBox}>
+            {item.order_items.map(it => (
+              <View key={it.id} style={styles.itemRow}>
+                <Text style={styles.itemQty}>{it.quantity} ×</Text>
+                <Text style={styles.itemName} numberOfLines={2}>{it.product_name}</Text>
+                <Text style={styles.itemPrice}>{(it.unit_price * it.quantity).toLocaleString()} F</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <Text style={styles.orderAmount}>Total : {item.total_amount.toLocaleString()} F</Text>
         {item.status === 'cancelled' && item.cancel_reason ? (
           <Text style={styles.reason}>Motif : {item.cancel_reason}</Text>
         ) : null}
@@ -222,6 +243,11 @@ const styles = StyleSheet.create({
   statusText:      { fontSize: 11, fontWeight: '600' },
   orderAmount:     { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary },
   reason:          { fontSize: 12, color: COLORS.danger },
+  itemsBox:        { backgroundColor: COLORS.bg, borderRadius: 8, padding: 10, gap: 6 },
+  itemRow:         { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  itemQty:         { fontSize: 13, fontWeight: '700', color: COLORS.textPrimary, minWidth: 28 },
+  itemName:        { flex: 1, fontSize: 13, color: COLORS.textPrimary },
+  itemPrice:       { fontSize: 12, color: COLORS.textSecondary },
   btnRow:          { flexDirection: 'row', gap: 8 },
   btn:             { flex: 1, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   btnRefuse:       { borderWidth: 2, borderColor: COLORS.danger, backgroundColor: COLORS.white },

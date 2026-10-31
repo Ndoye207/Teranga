@@ -8,6 +8,7 @@ import VendorScreen   from '../screens/client/VendorScreen';
 import CartScreen     from '../screens/client/CartScreen';
 import TrackingScreen from '../screens/client/TrackingScreen';
 import RatingScreen   from '../screens/client/RatingScreen';
+import OrderHistoryScreen from '../screens/client/OrderHistoryScreen';
 import Icon           from '../components/Icon';
 
 const Tab   = createBottomTabNavigator<ClientTabParamList>();
@@ -77,6 +78,7 @@ export default function ClientNavigator() {
   return (
     <Root.Navigator screenOptions={{ headerShown: false }}>
       <Root.Screen name="ClientTabs" component={ClientTabs} />
+      <Root.Screen name="OrderHistory" component={OrderHistoryScreen} />
       <Root.Screen name="Rating" component={RatingScreen} />
     </Root.Navigator>
   );
