@@ -1,4 +1,8 @@
 {
   "name": "Teranga",
-  "displayName": "Teranga"
+  "displayName": "Teranga",
+  "expo": {
+    "name": "Teranga",
+    "slug": "teranga"
+  }
 }
