@@ -1,13 +1,6 @@
-export type UserRole = 'client' | 'vendor' | 'livreur' | 'admin';
+import type { ShopCategory } from '../constants/categories';
 
-export interface User {
-  id: string;
-  name: string;
-  phone: string;
-  role: UserRole;
-  avatar?: string;
-  token?: string;
-}
+export type UserRole = 'buyer' | 'vendor' | 'livreur' | 'admin' | 'client';
 
 export interface Vendor {
   id: string;
@@ -19,11 +12,12 @@ export interface Vendor {
   rating: number;
   totalOrders: number;
   isOpen: boolean;
-  categories: ('legumes' | 'plats' | 'traiteur')[];
+  categories: ShopCategory[];
   badge?: 'top' | null;
 }
 
 export type Product = DBProduct;
+export type Order = DBOrder;
 
 export interface CartItem {
   product: Product;
@@ -37,31 +31,8 @@ export type OrderStatus =
   | 'ready'
   | 'picked_up'
   | 'delivering'
-  | 'delivered';
-
-export interface Order {
-  id: string;
-  clientId: string;
-  vendorId: string;
-  vendorName: string;
-  livreurId?: string;
-  items: CartItem[];
-  totalAmount: number;
-  deliveryFee: number;
-  status: OrderStatus;
-  paymentMethod: 'cash' | 'wave' | 'orange_money';
-  deliveryAddress: string;
-  note?: string;
-  createdAt: string;
-}
-
-export interface Rating {
-  orderId: string;
-  vendorRating: number;
-  vendorComment?: string;
-  livreurRating: number;
-  livreurComment?: string;
-}
+  | 'delivered'
+  | 'cancelled';
 
 import { Database } from './supabase';
 

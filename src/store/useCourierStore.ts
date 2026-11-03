@@ -1,34 +1,34 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '../services/api';
+import { isCourierProfileComplete } from '../utils/courier';
+import { registerReset } from './reset';
 
 interface CourierStore {
   isConfigured: boolean;
   isLoading: boolean;
+  checkedFor: string | null;
   checkCourierProfile: (userId: string) => Promise<void>;
   setConfigurationStatus: (status: boolean) => void;
 }
 
-export const useCourierStore = create<CourierStore>((set) => ({
-  isConfigured: false,
-  isLoading: true,
+const initialState = { isConfigured: false, isLoading: true, checkedFor: null };
 
-  checkCourierProfile: async (userId: string) => {
-    set({ isLoading: true });
-    try {
-      const stored = await AsyncStorage.getItem(`courier_profile_${userId}`);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed && parsed.isConfigured) {
-          set({ isConfigured: true, isLoading: false });
-          return;
-        }
+export const useCourierStore = create<CourierStore>((set, get) => {
+  registerReset(() => set(initialState));
+  return {
+    ...initialState,
+
+    checkCourierProfile: async (userId: string) => {
+      if (get().checkedFor !== userId) set({ isLoading: true, isConfigured: false });
+      try {
+        const profile = await api.getCourierProfile(userId);
+        set({ isConfigured: isCourierProfileComplete(profile), isLoading: false, checkedFor: userId });
+      } catch (error) {
+        console.error('Erreur chargement profil livreur :', error);
+        set({ isConfigured: false, isLoading: false });
       }
-      set({ isConfigured: false, isLoading: false });
-    } catch (error) {
-      console.error('Error checking courier profile in store:', error);
-      set({ isConfigured: false, isLoading: false });
-    }
-  },
+    },
 
-  setConfigurationStatus: (status: boolean) => set({ isConfigured: status }),
-}));
+    setConfigurationStatus: (status: boolean) => set({ isConfigured: status }),
+  };
+});

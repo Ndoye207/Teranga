@@ -1,19 +1,59 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, SafeAreaView, StatusBar,
+  StyleSheet, SafeAreaView, StatusBar, ActivityIndicator, Alert,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { COLORS } from '../../constants/colors';
 import { useAuthStore } from '../../store/useAuthStore';
+import { api } from '../../services/api';
+import { supabase } from '../../services/supabase';
 
-const REVIEWS = [
-  { name: 'Moussa Ba',    rating: 5, comment: 'Excellent service, légumes très frais !', date: 'il y a 2h' },
-  { name: 'Aminata Diop', rating: 4, comment: 'Bonne qualité, livraison rapide.',         date: 'il y a 1j' },
-  { name: 'Omar Seck',    rating: 5, comment: 'Thiéboudienne délicieuse !',               date: 'il y a 2j' },
-];
+type Review = { rating: number; comment: string | null; created_at: string; profiles: { full_name: string | null } | null };
 
 export default function StatsScreen() {
   const { logout } = useAuthStore();
+  const [loading, setLoading] = useState(true);
+  const [avg, setAvg] = useState<number | null>(null);
+  const [count, setCount] = useState(0);
+  const [ordersMonth, setOrdersMonth] = useState(0);
+  const [revenueMonth, setRevenueMonth] = useState(0);
+  const [satisfied, setSatisfied] = useState<number | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const load = async () => {
+        try {
+          const vendor = await api.getMyVendor();
+          if (!vendor) return;
+          const since = new Date(); since.setDate(since.getDate() - 30);
+
+          const [{ data: orders }, { data: ratings }] = await Promise.all([
+            supabase.from('orders').select('total_amount, delivery_fee, status')
+              .eq('vendor_id', vendor.id).gte('created_at', since.toISOString()).neq('status', 'cancelled'),
+            supabase.from('ratings').select('rating, comment, created_at, profiles(full_name)')
+              .eq('vendor_id', vendor.id).order('created_at', { ascending: false }),
+          ]);
+          setOrdersMonth(orders?.length ?? 0);
+          setRevenueMonth((orders || []).reduce((a, o) => a + Math.max(0, o.total_amount - (o.delivery_fee || 0)), 0));
+          const list = (ratings || []) as unknown as Review[];
+          setCount(list.length);
+          setAvg(list.length ? list.reduce((a, r) => a + r.rating, 0) / list.length : null);
+          setSatisfied(list.length ? Math.round((list.filter(r => r.rating >= 4).length / list.length) * 100) : null);
+          setReviews(list.filter(r => r.comment).slice(0, 10));
+        } catch (err) {
+          console.error('Erreur chargement statistiques:', err);
+          Alert.alert('Erreur', 'Impossible de charger les statistiques.');
+        } finally {
+          setLoading(false);
+        }
+      };
+      load();
+    }, []),
+  );
+
+  const rounded = Math.round(avg ?? 0);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -24,56 +64,53 @@ export default function StatsScreen() {
         <Text style={styles.headerSub}>Derniers 30 jours</Text>
       </View>
 
+      {loading ? (
+        <ActivityIndicator style={{ marginTop: 40 }} color={COLORS.primary} />
+      ) : (
       <ScrollView showsVerticalScrollIndicator={false}>
 
         {/* Note globale */}
         <View style={styles.ratingCard}>
           <View style={styles.ratingMain}>
-            <Text style={styles.ratingBig}>4.8</Text>
+            <Text style={styles.ratingBig}>{avg !== null ? avg.toFixed(1) : '—'}</Text>
             <View>
-              <Text style={styles.stars}>★★★★★</Text>
-              <Text style={styles.ratingLabel}>342 avis au total</Text>
+              <Text style={styles.stars}>{'★'.repeat(rounded)}{'☆'.repeat(5 - rounded)}</Text>
+              <Text style={styles.ratingLabel}>{count} avis au total</Text>
             </View>
-          </View>
-          <View style={styles.topBadge}>
-            <Text style={styles.topBadgeText}>🥇 Meilleur vendeur</Text>
           </View>
         </View>
 
         {/* Stats */}
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <Text style={styles.statVal}>42</Text>
-            <Text style={styles.statLabel}>Commandes ce mois</Text>
+            <Text style={styles.statVal}>{ordersMonth}</Text>
+            <Text style={styles.statLabel}>Commandes (30 j)</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statVal, { color: COLORS.accent }]}>62 000</Text>
+            <Text style={[styles.statVal, { color: COLORS.accent }]}>{revenueMonth.toLocaleString()}</Text>
             <Text style={styles.statLabel}>Revenus (FCFA)</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statVal, { color: COLORS.success }]}>98%</Text>
+            <Text style={[styles.statVal, { color: COLORS.success }]}>{satisfied !== null ? `${satisfied}%` : '—'}</Text>
             <Text style={styles.statLabel}>Clients satisfaits</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statVal}>18 min</Text>
-            <Text style={styles.statLabel}>Temps prépa moyen</Text>
           </View>
         </View>
 
         {/* Avis */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Avis récents</Text>
-          {REVIEWS.map((r, i) => (
+          {reviews.length === 0 && <Text style={styles.reviewDate}>Aucun avis pour le moment.</Text>}
+          {reviews.map((r, i) => (
             <View key={i} style={styles.reviewCard}>
               <View style={styles.reviewHead}>
                 <View style={styles.reviewAvatar}>
                   <Text style={styles.reviewAvatarText}>
-                    {r.name.charAt(0)}
+                    {(r.profiles?.full_name || 'C').charAt(0)}
                   </Text>
                 </View>
                 <View style={styles.reviewInfo}>
-                  <Text style={styles.reviewName}>{r.name}</Text>
-                  <Text style={styles.reviewDate}>{r.date}</Text>
+                  <Text style={styles.reviewName}>{r.profiles?.full_name || 'Client'}</Text>
+                  <Text style={styles.reviewDate}>{new Date(r.created_at).toLocaleDateString('fr-FR')}</Text>
                 </View>
                 <Text style={styles.reviewStars}>
                   {'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}
@@ -90,6 +127,7 @@ export default function StatsScreen() {
         </TouchableOpacity>
 
       </ScrollView>
+      )}
     </SafeAreaView>
   );
 }

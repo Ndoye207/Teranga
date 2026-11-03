@@ -1,21 +1,53 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, StatusBar,
+  StyleSheet, StatusBar, ActivityIndicator, Alert,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/colors';
 import { useAuthStore } from '../../store/useAuthStore';
+import { api } from '../../services/api';
+import { supabase } from '../../services/supabase';
 
-const MOCK_HISTORY = [
-  { id: 'CMD-098', client: 'Moussa Ba',    addr: 'Mermoz',    fee: 500, date: 'Aujourd\'hui 14:32' },
-  { id: 'CMD-097', client: 'Fatou Diallo', addr: 'Liberté 6', fee: 700, date: 'Aujourd\'hui 11:15' },
-  { id: 'CMD-096', client: 'Omar Seck',    addr: 'Fann',      fee: 400, date: 'Hier 18:45' },
-  { id: 'CMD-095', client: 'Aminata Diop', addr: 'Plateau',   fee: 600, date: 'Hier 15:20' },
-];
+type Delivered = {
+  id: string; total_amount: number; delivery_fee: number | null;
+  shipping_address: string; updated_at: string; created_at: string;
+};
+
+const startOfDay = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+const startOfWeek = () => { const d = startOfDay(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; };
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 export default function RevenusScreen() {
-  const { logout } = useAuthStore();
+  const { user, logout } = useAuthStore();
+  const [rows, setRows] = useState<Delivered[]>([]);
+  const [rating, setRating] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!user) return;
+    try {
+      setRows(await api.getDeliveredByCourier(user.id));
+      const { data } = await supabase.from('ratings').select('rating').eq('livreur_id', user.id);
+      if (data && data.length > 0) {
+        setRating(data.reduce((a, r) => a + r.rating, 0) / data.length);
+      }
+    } catch (err) {
+      console.error('Erreur chargement revenus:', err);
+      Alert.alert('Erreur', 'Impossible de charger vos revenus.');
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const fee = (r: Delivered) => r.delivery_fee ?? 0;
+  const todayRows = rows.filter(r => new Date(r.updated_at) >= startOfDay());
+  const weekRows = rows.filter(r => new Date(r.updated_at) >= startOfWeek());
+  const sum = (list: Delivered[]) => list.reduce((a, r) => a + fee(r), 0);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: COLORS.primary }]} edges={['top']}>
@@ -23,64 +55,74 @@ export default function RevenusScreen() {
 
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Revenus & Notes</Text>
-        <Text style={styles.headerSub}>Moussa Dleaf · Dakar</Text>
+        <Text style={styles.headerSub}>{user?.full_name || 'Livreur'}</Text>
       </View>
 
       <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
+        {loading ? (
+          <ActivityIndicator style={{ marginTop: 40 }} color={COLORS.primary} />
+        ) : (
         <ScrollView showsVerticalScrollIndicator={false}>
 
           {/* Stats principales */}
           <View style={styles.mainStats}>
             <View style={styles.mainStatCard}>
               <Text style={styles.mainStatLabel}>Aujourd'hui</Text>
-              <Text style={styles.mainStatVal}>25 000 F</Text>
+              <Text style={styles.mainStatVal}>{sum(todayRows).toLocaleString()} F</Text>
             </View>
             <View style={styles.mainStatCard}>
               <Text style={styles.mainStatLabel}>Cette semaine</Text>
-              <Text style={[styles.mainStatVal, { color: COLORS.accent }]}>150 000 F</Text>
+              <Text style={[styles.mainStatVal, { color: COLORS.accent }]}>{sum(weekRows).toLocaleString()} F</Text>
             </View>
           </View>
 
           {/* Stats secondaires */}
           <View style={styles.secondaryStats}>
             <View style={styles.secondaryCard}>
-              <Text style={styles.secondaryVal}>20</Text>
+              <Text style={styles.secondaryVal}>{rows.length}</Text>
               <Text style={styles.secondaryLabel}>Livraisons réussies</Text>
             </View>
             <View style={styles.secondaryCard}>
-              <Text style={[styles.secondaryVal, styles.ratingText]}>4.8 ★</Text>
+              <Text style={[styles.secondaryVal, styles.ratingText]}>
+                {rating !== null ? `${rating.toFixed(1)} ★` : '—'}
+              </Text>
               <Text style={styles.secondaryLabel}>Note moyenne</Text>
             </View>
             <View style={styles.secondaryCard}>
-              <Text style={[styles.secondaryVal, { color: COLORS.success }]}>98%</Text>
-              <Text style={styles.secondaryLabel}>Taux de succès</Text>
+              <Text style={[styles.secondaryVal, { color: COLORS.success }]}>{sum(rows).toLocaleString()} F</Text>
+              <Text style={styles.secondaryLabel}>Total gagné</Text>
             </View>
           </View>
 
-          {/* Note badge */}
-          <View style={styles.badgeCard}>
-            <Text style={styles.badgeEmoji}>🏆</Text>
-            <View>
-              <Text style={styles.badgeTitle}>Top livreur</Text>
-              <Text style={styles.badgeSub}>Note ≥ 4.5 · 20+ livraisons</Text>
+          {/* Badge : affiché seulement s'il est mérité */}
+          {rating !== null && rating >= 4.5 && rows.length >= 20 && (
+            <View style={styles.badgeCard}>
+              <Text style={styles.badgeEmoji}>🏆</Text>
+              <View>
+                <Text style={styles.badgeTitle}>Top livreur</Text>
+                <Text style={styles.badgeSub}>Note ≥ 4.5 · 20+ livraisons</Text>
+              </View>
             </View>
-          </View>
+          )}
 
           {/* Historique */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Historique des courses</Text>
-            {MOCK_HISTORY.map(item => (
+            {rows.length === 0 && (
+              <Text style={styles.historyAddr}>Aucune course terminée pour le moment.</Text>
+            )}
+            {rows.slice(0, 30).map(item => (
               <View key={item.id} style={styles.historyCard}>
                 <View style={styles.historyLeft}>
                   <View style={styles.historyIcon}>
                     <Text style={styles.historyIconText}>🛵</Text>
                   </View>
                   <View>
-                    <Text style={styles.historyClient}>{item.client}</Text>
-                    <Text style={styles.historyAddr}>{item.addr} · {item.date}</Text>
+                    <Text style={styles.historyClient}>#{item.id.slice(0, 8)}</Text>
+                    <Text style={styles.historyAddr} numberOfLines={1}>{item.shipping_address} · {fmtDate(item.updated_at)}</Text>
                   </View>
                 </View>
-                <Text style={styles.historyFee}>+{item.fee} F</Text>
+                <Text style={styles.historyFee}>+{fee(item)} F</Text>
               </View>
             ))}
           </View>
@@ -91,6 +133,7 @@ export default function RevenusScreen() {
           </TouchableOpacity>
 
         </ScrollView>
+        )}
       </View>
     </SafeAreaView>
   );

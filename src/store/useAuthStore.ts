@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { DBProfile } from '../types';
-import { authService } from '../services/authService';
+import { authService, authFlags } from '../services/authService';
 import { supabase } from '../services/supabase';
+import { resetAllStores } from './reset';
 
 interface AuthState {
   user: DBProfile | null;
@@ -60,8 +61,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       if (event === 'SIGNED_OUT' || !session?.user) {
         set({ user: null, token: null, isLoading: false });
+        resetAllStores();
         return;
       }
+      if (authFlags.recoveryInProgress) return; // fin de la réinitialisation : le profil est chargé ensuite
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         setTimeout(() => {
           get().fetchProfile(true);
@@ -78,6 +81,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.error('Erreur lors de la déconnexion :', error);
     } finally {
       set({ user: null, token: null });
+      resetAllStores();
     }
   },
 }));

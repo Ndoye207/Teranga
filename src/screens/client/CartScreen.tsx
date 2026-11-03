@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { View, Text, TouchableOpacity, FlatList, StyleSheet, StatusBar, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, StatusBar, Alert, TextInput } from 'react-native';
 import Icon from '../../components/Icon';
 import { Card } from '../../components/Card';
 import { COLORS } from '../../constants/colors';
 import { useCartStore } from '../../store/useCartStore';
-import { useOrderStore } from '../../store/useOrderStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { api } from '../../services/api';
+import { categoryOf } from '../../utils/category';
 
 const PAYMENT_METHODS = [
   { id: 'cash',         label: 'Cash',         icon: 'cash',          family: 'ion' },
@@ -15,57 +15,56 @@ const PAYMENT_METHODS = [
   { id: 'orange_money', label: 'Orange Money',  icon: 'phone-portrait', family: 'ion' },
 ];
 
+const PAYMENT_LABEL = { cash: 'Cash', wave: 'Wave', orange_money: 'Orange Money' } as const;
+
+// Affichage uniquement : le montant réel est calculé par le serveur (fonction create_order)
 const DELIVERY_FEE = 500;
 
 export default function CartScreen({ navigation }: any) {
-  const insets = useSafeAreaInsets();
-  const { items, updateQty, clearCart, total } = useCartStore();
-  const { addOrder } = useOrderStore();
+  const { items, vendorId, updateQty, clearCart, total } = useCartStore();
   const { user } = useAuthStore();
-  const [payment, setPayment] = useState('cash');
-  const [address] = useState('Médina, Dakar');
+  const [payment, setPayment] = useState<'cash' | 'wave' | 'orange_money'>('cash');
+  const [address, setAddress] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const handleOrder = () => {
+    if (submitting) return;
     if (items.length === 0) {
       Alert.alert('Panier vide', 'Ajoute des produits avant de commander');
       return;
     }
+    if (address.trim().length < 5) {
+      Alert.alert('Adresse manquante', 'Indique ton adresse de livraison (quartier, rue, repère).');
+      return;
+    }
     Alert.alert(
       'Confirmer la commande',
-      `Total : ${(total() + DELIVERY_FEE).toLocaleString()} F\nPaiement : ${payment}`,
+      `Total : ${(total() + DELIVERY_FEE).toLocaleString()} F\nPaiement : ${PAYMENT_LABEL[payment]}`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Commander',
           onPress: async () => {
+            if (!user?.id || !vendorId) {
+              Alert.alert('Connexion requise', 'Connecte-toi pour passer une commande.');
+              return;
+            }
+            setSubmitting(true);
             try {
-              if (user?.id) {
-                await api.createOrder({
-                  buyer_id: user.id,
-                  vendor_id: items[0].product.vendor_id,
-                  total_amount: total() + DELIVERY_FEE,
-                  shipping_address: address,
-                  status: 'pending',
-                });
-              }
-              addOrder({
-                id: `CMD-${Date.now()}`,
-                clientId: user?.id ?? '1',
-                vendorId: items[0].product.vendor_id,
-                vendorName: 'Boutique',
-                items: [...items],
-                totalAmount: total(),
-                deliveryFee: DELIVERY_FEE,
-                status: 'pending',
-                paymentMethod: payment as any,
-                deliveryAddress: address,
-                createdAt: new Date().toISOString(),
+              // Prix, stock et frais de livraison sont recalculés et vérifiés côté serveur
+              await api.createOrder({
+                vendorId,
+                items: items.map(i => ({ productId: i.product.id, quantity: i.quantity })),
+                address: address.trim(),
+                payment,
               });
               clearCart();
               navigation.navigate('TrackingTab');
             } catch (err: any) {
               console.error('Erreur creation commande:', err);
               Alert.alert('Erreur', err.message || 'Impossible de passer la commande');
+            } finally {
+              setSubmitting(false);
             }
           },
         },
@@ -124,10 +123,7 @@ export default function CartScreen({ navigation }: any) {
             <Card style={styles.cartRow}>
               <View style={[styles.cartIconBox, { backgroundColor: COLORS.bg }]}>
                 <Icon
-                  name={
-                    item.product.category === 'plats'    ? 'restaurant' :
-                    item.product.category === 'traiteur' ? 'people'     : 'leaf'
-                  }
+                  name={categoryOf(item.product.category).icon}
                   size={22}
                   color={COLORS.primary}
                 />
@@ -147,7 +143,11 @@ export default function CartScreen({ navigation }: any) {
                 <Text style={styles.qtyVal}>{item.quantity}</Text>
                 <TouchableOpacity
                   style={styles.qtyBtn}
-                  onPress={() => updateQty(item.product.id, item.quantity + 1)}
+                  onPress={() => {
+                    if (!updateQty(item.product.id, item.quantity + 1)) {
+                      Alert.alert('Stock limité', `Il ne reste que ${item.product.stock} « ${item.product.name} » en stock.`);
+                    }
+                  }}
                 >
                   <Icon name="add" size={14} color={COLORS.primary} />
                 </TouchableOpacity>
@@ -162,7 +162,14 @@ export default function CartScreen({ navigation }: any) {
                   <Icon name="location" size={18} color={COLORS.primary} />
                   <Text style={styles.sectionTitle}>Adresse de livraison</Text>
                 </View>
-                <Text style={styles.addressText}>{address}</Text>
+                <TextInput
+                  style={styles.addressInput}
+                  value={address}
+                  onChangeText={setAddress}
+                  placeholder="Ex : Médina, rue 11 x 18, près de la pharmacie"
+                  placeholderTextColor={COLORS.textSecondary}
+                  multiline
+                />
               </Card>
 
               {/* Mode de paiement */}
@@ -178,7 +185,7 @@ export default function CartScreen({ navigation }: any) {
                       <TouchableOpacity
                         key={m.id}
                         style={[styles.payBtn, active && styles.payBtnActive]}
-                        onPress={() => setPayment(m.id)}
+                        onPress={() => setPayment(m.id as 'cash' | 'wave' | 'orange_money')}
                       >
                         <Icon name={m.icon} family={m.family} size={16} color={active ? '#fff' : COLORS.textSecondary} />
                         <Text style={[styles.payBtnText, active && styles.payBtnTextActive]}>{m.label}</Text>
@@ -207,7 +214,7 @@ export default function CartScreen({ navigation }: any) {
               </Card>
 
               {/* Bouton Commander */}
-              <TouchableOpacity style={styles.orderBtn} onPress={handleOrder}>
+              <TouchableOpacity style={[styles.orderBtn, submitting && { opacity: 0.6 }]} onPress={handleOrder} disabled={submitting}>
                 <Icon name="checkmark-circle" size={20} color="#fff" />
                 <Text style={styles.orderBtnText}>Valider la commande</Text>
               </TouchableOpacity>
@@ -253,6 +260,7 @@ const styles = StyleSheet.create({
   sectionHeader:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionTitle:    { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary },
   addressText:     { fontSize: 13, color: COLORS.textSecondary },
+  addressInput:    { fontSize: 14, color: COLORS.textPrimary, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: 44 },
   payRow:          { flexDirection: 'row', gap: 8 },
   payBtn:          { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bg },
   payBtnActive:    { backgroundColor: COLORS.primary, borderColor: COLORS.primary },

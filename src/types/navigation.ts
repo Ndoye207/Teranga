@@ -1,4 +1,4 @@
-import { Vendor, Order } from './index';
+import { Vendor } from './index';
 
 export type RootStackParamList = {
   Selection: undefined;
@@ -14,13 +14,17 @@ export type RootStackParamList = {
 export type ClientStackParamList = {
   Home: undefined;
   Vendor: { vendor: Vendor };
-  Rating: { order: Order };
+};
+
+// Pile racine du client : les onglets + les écrans qui doivent s'ouvrir par-dessus (notation)
+export type ClientRootParamList = {
+  ClientTabs: undefined;
+  OrderHistory: undefined;
+  Rating: { order: { id: string; vendorName?: string; hasLivreur?: boolean } };
 };
 
 export type VendorStackParamList = {
   Main: undefined;
-  Products: undefined;
-  Orders: undefined;
   CreateShop: undefined;
   AddProduct: { vendorId?: string; product?: any };
   AccountSettings: undefined;
@@ -29,8 +33,7 @@ export type VendorStackParamList = {
 
 export type LivreurStackParamList = {
   MainTabs: undefined;
-  Courses: undefined;
-  CourseDetail: { courseId: string };
+  CourseDetail: { course: any };
   CreateCourier: undefined;
   CourierSettings: undefined;
 };

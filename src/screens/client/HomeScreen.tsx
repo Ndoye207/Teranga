@@ -5,22 +5,16 @@ import Icon from '../../components/Icon';
 import { Card } from '../../components/Card';
 import { COLORS } from '../../constants/colors';
 import { Vendor } from '../../types';
+import { normalizeCategory, ShopCategory } from '../../utils/category';
+import { CATEGORIES, getCategory } from '../../constants/categories';
 
 import { api } from '../../services/api';
 
-const CATEGORIES = [
-  { id: 'all',      label: 'Tous',     icon: 'grid',              family: 'ion' },
-  { id: 'legumes',  label: 'Légumes',  icon: 'leaf',              family: 'ion' },
-  { id: 'plats',    label: 'Plats',    icon: 'restaurant',        family: 'ion' },
-  { id: 'traiteur', label: 'Traiteur', icon: 'people',            family: 'ion' },
+// Filtres : « Tous » + toutes les catégories officielles (constants/categories.ts)
+const FILTERS = [
+  { id: 'all', label: 'Tous', icon: 'grid', bg: '#E8F0FB', color: '#1B3A6B' },
+  ...CATEGORIES.map(c => ({ id: c.id as string, label: c.fullLabel, icon: c.icon, bg: c.bg, color: c.color })),
 ];
-
-const CAT_COLORS: Record<string, string> = {
-  all: '#E8F0FB', legumes: '#EDFBF3', plats: '#FEF0E8', traiteur: '#F3EEFB',
-};
-const CAT_ICON_COLORS: Record<string, string> = {
-  all: '#1B3A6B', legumes: '#22C55E', plats: '#E8834A', traiteur: '#8B5CF6',
-};
 
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -45,7 +39,11 @@ export default function HomeScreen({ navigation }: any) {
         rating: v.rating || 0,
         totalOrders: 0, 
         isOpen: v.is_open ?? true,
-        categories: [], 
+        categories: Array.from(new Set(
+          (v.products || [])
+            .map(p => normalizeCategory(p.category))
+            .filter((c): c is ShopCategory => c !== null),
+        )),
       }));
       setVendors(mappedVendors);
     } catch (err) {
@@ -70,13 +68,12 @@ export default function HomeScreen({ navigation }: any) {
       >
         <View style={[
           styles.catIconBox,
-          isActive ? styles.catIconBoxActive : { backgroundColor: CAT_COLORS[item.id] }
+          isActive ? styles.catIconBoxActive : { backgroundColor: item.bg }
         ]}>
           <Icon
             name={item.icon}
-            family={item.family}
             size={16}
-            color={isActive ? '#fff' : CAT_ICON_COLORS[item.id]}
+            color={isActive ? '#fff' : item.color}
           />
         </View>
         <Text style={[styles.catLabel, isActive && styles.catLabelActive]}>
@@ -95,10 +92,7 @@ export default function HomeScreen({ navigation }: any) {
         <View style={styles.vendorImgBox}>
           <View style={styles.vendorImgIcon}>
             <Icon
-              name={
-                item.categories.includes('traiteur') ? 'people' :
-                item.categories.includes('plats')    ? 'restaurant' : 'leaf'
-              }
+              name={getCategory(item.categories[0]).icon}
               size={36}
               color={COLORS.primary}
             />
@@ -117,6 +111,11 @@ export default function HomeScreen({ navigation }: any) {
         </View>
 
         <View style={styles.vendorInfo}>
+          {item.categories.length > 0 && (
+            <Text style={styles.vendorCats} numberOfLines={1}>
+              {item.categories.map(c => getCategory(c).fullLabel).join(' · ')}
+            </Text>
+          )}
           <View style={styles.vendorTopRow}>
             <Text style={styles.vendorName} numberOfLines={1}>{item.name}</Text>
             <View style={styles.ratingPill}>
@@ -169,7 +168,7 @@ export default function HomeScreen({ navigation }: any) {
       <View style={[styles.flex1, { backgroundColor: COLORS.bg }]}>
         {/* Categories */}
         <FlatList
-          data={CATEGORIES}
+          data={FILTERS}
           keyExtractor={i => i.id}
           renderItem={renderCategory}
           horizontal
@@ -239,6 +238,7 @@ const styles = StyleSheet.create({
   topBadgeText:    { fontSize: 11, fontWeight: '700', color: '#92400E' },
   vendorInfo:      { padding: 12, gap: 6 },
   vendorTopRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  vendorCats:      { fontSize: 11, color: COLORS.textSecondary, marginBottom: 4 },
   vendorName:      { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, flex: 1 },
   ratingPill:      { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FEF3C7', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   ratingText:      { fontSize: 12, fontWeight: '700', color: '#92400E' },

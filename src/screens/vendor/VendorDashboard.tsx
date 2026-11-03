@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar, Switch, ActivityIndicator, Alert } from 'react-native';
 import { COLORS } from '../../constants/colors';
@@ -25,38 +26,49 @@ export default function VendorDashboard({ navigation }: any) {
   const [comments, setComments] = useState<any[]>([]);
   const [isOnline, setIsOnline] = useState(false);
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!user) return;
-      try {
-        setLoading(true);
-        const { data: vendorData } = await supabase
-          .from('vendors')
-          .select('*')
-          .eq('profile_id', user.id)
-          .single();
-        
-        setVendor(vendorData);
-        if (vendorData) {
-          setIsOnline(vendorData.is_open ?? false);
-          
-          const [statsData, ordersData, commentsData] = await Promise.all([
-            api.getVendorStats(vendorData.id),
-            api.getVendorOrders(vendorData.id),
-            supabase.from('ratings').select('rating, comment, profiles(full_name)').eq('vendor_id', vendorData.id).limit(5)
-          ]);
-          setStats(statsData as any);
-          setOrders(ordersData);
-          setComments(commentsData.data || []);
+  // Recharge à chaque retour sur l'écran (ex. après création de la boutique)
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const loadData = async () => {
+        if (!user) return;
+        try {
+          setLoading(true);
+          const vendorData = await api.getMyVendor();
+          if (!active) return;
+          setVendor(vendorData);
+          if (vendorData) {
+            setIsOnline(vendorData.is_open ?? false);
+            const [statsData, ordersData, commentsData] = await Promise.all([
+              api.getVendorStats(vendorData.id),
+              api.getVendorOrders(vendorData.id),
+              supabase
+                .from('ratings')
+                .select('rating, comment, profiles(full_name)')
+                .eq('vendor_id', vendorData.id)
+                .order('created_at', { ascending: false })
+                .limit(5),
+            ]);
+            if (!active) return;
+            setStats({
+              ...statsData,
+              rating: vendorData.rating ?? 0,
+              totalRatings: commentsData.data?.length ?? 0,
+            });
+            setOrders(ordersData);
+            setComments(commentsData.data || []);
+          }
+        } catch (error) {
+          console.error('Error loading dashboard:', error);
+          if (active) Alert.alert('Erreur', 'Impossible de charger le tableau de bord.');
+        } finally {
+          if (active) setLoading(false);
         }
-      } catch (error) {
-        console.error('Error loading dashboard:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, [user]);
+      };
+      loadData();
+      return () => { active = false; };
+    }, [user]),
+  );
 
   const toggleShopStatus = async (value: boolean) => {
     setIsOnline(value);
@@ -147,7 +159,7 @@ export default function VendorDashboard({ navigation }: any) {
               <Text style={styles.statLabel}>Note ({stats.totalRatings} avis)</Text>
             </View>
 
-            <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('AddProduct')}>
+            <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('AddProduct', { vendorId: vendor?.id })}>
               <Text style={styles.buttonText}>Ajouter un produit</Text>
             </TouchableOpacity>
 
